@@ -83,6 +83,11 @@ function watch(){unsubscribe?.();unsubscribe=onSnapshot(collection(db,'activePas
 async function loadProfile(){const snap=await getDoc(doc(db,'classrooms',user.uid));profile=snap.exists()?snap.data():null;$('teacher').value=profile?.teacherName||user.displayName||'';$('grade').value=profile?.grade||'6th Grade';$('room').value=profile?.room||'';render()}
 $('signin').onclick=async()=>{try{await signInWithPopup(auth,provider)}catch(e){message('Sign-in failed: '+e.message,true)}};
 $('signout').onclick=()=>signOut(auth);
+onAuthStateChanged(auth,async u=>{unsubscribe?.();unsubscribe=null;unsubscribeQueue?.();unsubscribeQueue=null;unsubscribeHistory?.();unsubscribeHistory=null;unsubRequests?.();unsubRequests=null;unsubDevices?.();unsubDevices=null;queue=[];queueReady=false;history=[];historyReady=false;user=null;profile=null;active=[];toggle('app',false);toggle('signout',false);$('identity').textContent='';
+if(!u){toggle('login',true);message('Sign in to open the Teacher Dashboard.');return}
+if(!allowed(u)){toggle('login',false);message('Access denied: verified @conroeisd.net account required.',true);await signOut(auth);return}
+user=u;toggle('login',false);$('identity').textContent=u.email;showMode();message('Loading your classroom…');
+try{await loadProfile();watch();watchQueue();watchHistory();watchPairing()}catch(e){message('Could not load classroom: '+e.message,true)}});
 $('saveProfile').onclick=async()=>{if(!user)return;const teacherName=clean($('teacher').value),grade=$('grade').value,room=clean($('room').value),pin=$('pinSetup').value;
 if(!teacherName||!room){message('Enter your teacher name and room.',true);return}if(pin&&!/^[0-9]{4,6}$/.test(pin)){message('PIN must contain 4 to 6 digits.',true);return}if(!pin&&!profile?.pinHash){message('Choose a 4–6 digit teacher PIN.',true);return}
 try{const pinSalt=pin?Array.from(crypto.getRandomValues(new Uint8Array(16))).map(x=>x.toString(16).padStart(2,'0')).join(''):profile.pinSalt;const hash=pin?await pinHash(pin,pinSalt):profile.pinHash;await setDoc(doc(db,'classrooms',user.uid),{teacherName,grade,room,ownerUid:user.uid,pinSalt,pinHash:hash,updatedAt:serverTimestamp()});$('pinSetup').value='';await loadProfile();message('Classroom and PIN saved.')}catch(e){message('Could not save classroom: '+e.message,true)}};
