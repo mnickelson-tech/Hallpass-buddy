@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HallPass Pro — School Bathroom & Hallway Management</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Font Awesome for clean UI icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900 min-h-screen flex flex-col">
+
+  <!-- Toast Notification Container (Replaces native alert/confirm) -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- Top Navigation Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+      <!-- Brand / Title -->
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
+          <i class="fa-solid fa-id-badge text-lg"></i>
+        </div>
+        <div class="truncate">
+          <div class="flex items-center gap-2">
+            <h1 id="school-title-display" class="text-base sm:text-lg font-bold text-slate-900 truncate">Oakridge School HallPass</h1>
+            <span id="kiosk-badge" class="hidden px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+              <i class="fa-solid fa-tablet-screen-button mr-1"></i>Kiosk Mode
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 hidden sm:block">Real-time Student Hallway & Restroom Tracker</p>
+        </div>
+      </div>
+
+      <!-- Live Clock & Action Controls -->
+      <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div class="hidden md:flex flex-col items-end mr-2 text-right">
+          <span id="live-clock" class="text-sm font-bold text-slate-800 tabular-nums">--:--:-- --</span>
+          <span id="live-date" class="text-xs text-slate-500">Loading date...</span>
+        </div>
+
+        <!-- Kiosk Mode Toggle Button -->
+        <button id="toggle-kiosk-btn" type="button"
+          class="px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300"
+          title="Switch between Teacher Dashboard and Student Self-Service Kiosk">
+          <i class="fa-solid fa-desktop"></i>
+          <span class="hidden sm:inline" id="kiosk-btn-label">Kiosk Mode</span>
+        </button>
+
+        <!-- Settings Button (Hidden in Kiosk Mode) -->
+        <button id="open-settings-btn" type="button"
+          class="teacher-only p-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition"
+          title="Configure Capacity Limits, Grades & Timers">
+          <i class="fa-solid fa-sliders"></i>
+        </button>
+
+        <!-- GitHub Pages Deployment Guide Button (Hidden in Kiosk Mode) -->
+        <button id="open-guide-btn" type="button"
+          class="teacher-only px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center gap-2 shadow-sm"
+          title="How to host this file on GitHub Pages">
+          <i class="fa-brands fa-github text-base"></i>
+          <span class="hidden md:inline">GitHub Setup</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Grade Level Filter Bar & Live Capacity Overview -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <!-- Grade Filter Pills -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Filter by Grade Level</span>
+            <span id="capacity-rule-badge" class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+              Max 2 out / grade
+            </span>
+          </div>
+          <div id="grade-filter-pills" class="flex flex-wrap gap-2">
+            <!-- Dynamically populated grade filter buttons -->
+          </div>
+        </div>
+
+        <!-- Quick KPI Summary Pills -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
+          <div class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
+            <div class="text-xs text-slate-500 font-medium">Currently Out</div>
+            <div id="kpi-active-count" class="text-xl font-extrabold text-indigo-600 tabular-nums">0</div>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
+            <div class="text-xs text-slate-500 font-medium">Overtime (&gt;<span id="kpi-warn-min">5</span>m)</div>
+            <div id="kpi-overtime-count" class="text-xl font-extrabold text-amber-600 tabular-nums">0</div>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
+            <div class="text-xs text-slate-500 font-medium">Waitlist Queue</div>
+            <div id="kpi-queue-count" class="text-xl font-extrabold text-slate-700 tabular-nums">0</div>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
+            <div class="text-xs text-slate-500 font-medium">Completed Today</div>
+            <div id="kpi-completed-count" class="text-xl font-extrabold text-emerald-600 tabular-nums">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-Grade Capacity Meter Strip -->
+      <div id="grade-capacity-grid" class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+        <!-- Dynamically rendered capacity cards per grade -->
+      </div>
+    </section>
+
+    <!-- Primary Workspace: Issue Pass Form (Left) + Active Passes Live Board (Right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- Column 1: Issue Hall Pass Form (5 cols on lg) -->
+      <section class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-5">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3.5">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-paper-plane text-indigo-600"></i>
+              <span id="form-heading">Issue New Hall Pass</span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5" id="form-subheading">Sign a student out and start their live pass timer.</p>
+          </div>
+        </div>
+
+        <form id="issue-pass-form" class="space-y-4" novalidate>
+          <!-- Student Name -->
+          <div>
+            <label for="student-name" class="block text-sm font-semibold text-slate-700 mb-1">
+              Student Full Name <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                <i class="fa-solid fa-user-graduate"></i>
+              </span>
+              <input type="text" id="student-name" name="studentName" required autocomplete="off"
+                placeholder="e.g., Maya Lin"
+                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-sm" />
+            </div>
+          </div>
+
+          <!-- Grade Level Selector -->
+          <div>
+            <label for="student-grade" class="block text-sm font-semibold text-slate-700 mb-1">
+              Grade Level <span class="text-rose-500">*</span>
+            </label>
+            <select id="student-grade" name="studentGrade" required
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-sm font-medium">
+              <!-- Populated dynamically from active grades -->
+            </select>
+            <p id="grade-availability-hint" class="text-xs mt-1.5 font-medium text-emerald-600">
+              Checking grade availability...
+            </p>
+          </div>
+
+          <!-- Destination Quick-Select Tiles -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">
+              Destination <span class="text-rose-500">*</span>
+            </label>
+            <div id="destination-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <!-- Populated via JS -->
+            </div>
+            <input type="hidden" id="selected-destination" value="Bathroom" />
+            <p id="dest-availability-hint" class="text-xs mt-1.5 text-slate-500"></p>
+          </div>
+
+          <!-- Optional Room / Teacher Name -->
+          <div>
+            <label for="room-teacher" class="block text-sm font-semibold text-slate-700 mb-1">
+              Room / Teacher <span class="text-slate-400 font-normal">(Optional)</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                <i class="fa-solid fa-door-open"></i>
+              </span>
+              <input type="text" id="room-teacher" name="roomTeacher" autocomplete="off"
+                placeholder="e.g., Rm 204 / Mr. Alvarez"
+                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-sm" />
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="pt-1">
+            <button type="submit" id="issue-submit-btn"
+              class="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-play"></i>
+              <span id="issue-btn-text">Start Hall Pass</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Waitlist / Queue Section (Shows when students are queued due to capacity) -->
+        <div id="waitlist-panel" class="hidden pt-4 border-t border-slate-200 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-amber-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-clock-rotate-left"></i>
+              <span>Capacity Waitlist Queue (<span id="waitlist-badge-count">0</span>)</span>
+            </h3>
+            <span class="text-xs text-slate-500">Auto-notifies when open</span>
+          </div>
+          <div id="waitlist-items" class="space-y-2">
+            <!-- Queued students rendered here -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Column 2: Active Hall Passes Live Board (7 cols on lg) -->
+      <section class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <span class="relative flex h-3 w-3">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </span>
+              <span>Active Hall Passes Live Board</span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Yellow warning at <strong id="legend-warn">5m</strong> &bull; Red alert at <strong id="legend-crit">10m</strong>
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 self-start sm:self-auto">
+            <span id="active-filter-label" class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">
+              Showing: All Grades
+            </span>
+          </div>
+        </div>
+
+        <!-- Active Passes Container -->
+        <div id="active-passes-list" class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <!-- Active pass cards rendered dynamically every second -->
+        </div>
+
+        <!-- Empty State for Active Passes -->
+        <div id="active-passes-empty" class="py-12 px-4 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 text-xl">
+            <i class="fa-solid fa-check-double"></i>
+          </div>
+          <h3 class="text-sm font-bold text-slate-800">All Students Are In Class</h3>
+          <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+            No active hall passes right now for the selected grade filter. Use the form to issue a pass.
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <!-- Pass History Log & Analytics Section (Hidden in Student Kiosk Mode for privacy) -->
+    <section id="history-analytics-section" class="teacher-only bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-chart-column text-indigo-600"></i>
+            <span>Pass History Log &amp; Analytics</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Searchable audit trail, grade breakdown statistics, and CSV export.</p>
+        </div>
+
+        <!-- Action Buttons: Demo Data, Clear, Export CSV -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="load-demo-btn" type="button"
+            class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-wand-magic-sparkles text-indigo-600"></i>
+            <span>Load Demo Data</span>
+          </button>
+          <button id="reset-data-btn" type="button"
+            class="px-3 py-2 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-trash-can"></i>
+            <span>Reset All</span>
+          </button>
+          <button id="export-csv-btn" type="button"
+            class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition flex items-center gap-1.5">
+            <i class="fa-solid fa-file-csv text-sm"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Grade & Destination Analytics Breakdown Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Grade Distribution Bar Chart -->
+        <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Passes by Grade</span>
+            <span id="analytics-total-passes" class="text-xs font-bold text-indigo-600">0 total</span>
+          </div>
+          <div id="analytics-grade-bars" class="space-y-2">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+
+        <!-- Destination Breakdown -->
+        <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Top Destinations</span>
+            <span class="text-xs text-slate-400">All time</span>
+          </div>
+          <div id="analytics-dest-bars" class="space-y-2">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+
+        <!-- Duration & Compliance Metrics -->
+        <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col justify-between space-y-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Duration &amp; Compliance</span>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-white p-3 rounded-xl border border-slate-200">
+              <div class="text-xs text-slate-500">Avg Duration</div>
+              <div id="analytics-avg-duration" class="text-lg font-extrabold text-slate-900 mt-0.5">0m 0s</div>
+            </div>
+            <div class="bg-white p-3 rounded-xl border border-slate-200">
+              <div class="text-xs text-slate-500">On-Time Rate</div>
+              <div id="analytics-ontime-rate" class="text-lg font-extrabold text-emerald-600 mt-0.5">100%</div>
+            </div>
+          </div>
+          <p class="text-xs text-slate-500">
+            Data is saved automatically in your browser's <code class="bg-slate-200/70 px-1 rounded text-slate-700">localStorage</code>.
+          </p>
+        </div>
+      </div>
+
+      <!-- Search & Filter Controls for History Table -->
+      <div class="flex flex-col sm:flex-row gap-3">
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </span>
+          <input type="text" id="history-search" placeholder="Search by student name, teacher, or room..."
+            class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <select id="history-dest-filter"
+          class="px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="ALL">All Destinations</option>
+          <option value="Bathroom">Bathroom</option>
+          <option value="Nurse">Nurse</option>
+          <option value="Office">Office</option>
+          <option value="Locker">Locker</option>
+          <option value="Counselor">Counselor</option>
+          <option value="Water">Water</option>
+        </select>
+        <select id="history-status-filter"
+          class="px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="ALL">All Durations</option>
+          <option value="ONTIME">On-Time Only</option>
+          <option value="OVERTIME">Overtime Only</option>
+        </select>
+      </div>
+
+      <!-- Responsive History Table -->
+      <div class="overflow-x-auto border border-slate-200 rounded-xl">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-slate-600 text-xs uppercase font-bold">
+            <tr>
+              <th scope="col" class="px-4 py-3 text-left">Student</th>
+              <th scope="col" class="px-4 py-3 text-left">Grade</th>
+              <th scope="col" class="px-4 py-3 text-left">Destination</th>
+              <th scope="col" class="px-4 py-3 text-left">Room / Teacher</th>
+              <th scope="col" class="px-4 py-3 text-left">Time Out &rarr; In</th>
+              <th scope="col" class="px-4 py-3 text-left">Duration</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body" class="divide-y divide-slate-100 bg-white">
+            <!-- Rows populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <p>HallPass Pro &mdash; Zero-Backend School Hallway &amp; Restroom Management</p>
+      <p>100% Client-Side &bull; Ready for GitHub Pages</p>
+    </div>
+  </footer>
+
+  <!-- MODAL 1: Settings & Capacity Rules -->
+  <div id="settings-modal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-indigo-600"></i>
+          <span>HallPass Rules &amp; Configuration</span>
+        </h3>
+        <button type="button" class="close-modal-btn text-slate-400 hover:text-slate-700 p-1.5 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="settings-form" class="p-6 overflow-y-auto space-y-5 text-sm">
+        <!-- School / Classroom Name -->
+        <div>
+          <label for="cfg-school-name" class="block font-semibold text-slate-700 mb-1">School or Classroom Title</label>
+          <input type="text" id="cfg-school-name" required
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+
+        <!-- Enabled Grade Levels -->
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1.5">Active Grade Levels</label>
+          <div id="cfg-grades-checkboxes" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            <!-- Checkboxes for 5th through 12th grade -->
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Select the grade levels served by your school or building wing.</p>
+        </div>
+
+        <!-- Capacity Limits -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="cfg-max-per-grade" class="block font-semibold text-slate-700 mb-1">Max Active Passes / Grade</label>
+            <input type="number" id="cfg-max-per-grade" min="1" max="25" required
+              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <p class="text-xs text-slate-500 mt-1">e.g., Max 2 students out per grade.</p>
+          </div>
+          <div>
+            <label for="cfg-max-bathroom" class="block font-semibold text-slate-700 mb-1">Max Bathroom Passes Total</label>
+            <input type="number" id="cfg-max-bathroom" min="1" max="30" required
+              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <p class="text-xs text-slate-500 mt-1">Caps simultaneous bathroom passes.</p>
+          </div>
+        </div>
+
+        <!-- Timer Thresholds -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="cfg-warn-mins" class="block font-semibold text-slate-700 mb-1">Yellow Warning (Minutes)</label>
+            <input type="number" id="cfg-warn-mins" min="1" max="60" required
+              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label for="cfg-crit-mins" class="block font-semibold text-slate-700 mb-1">Red Alert (Minutes)</label>
+            <input type="number" id="cfg-crit-mins" min="2" max="120" required
+              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+
+        <!-- Kiosk PIN Protection -->
+        <div>
+          <label for="cfg-kiosk-pin" class="block font-semibold text-slate-700 mb-1">Teacher PIN (to exit Kiosk Mode)</label>
+          <input type="text" id="cfg-kiosk-pin" maxlength="8" pattern="[0-9]*" placeholder="Optional (e.g., 1234)"
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <p class="text-xs text-slate-500 mt-1">Leave blank for instant toggle, or set a 4-digit PIN so students cannot exit Kiosk Mode.</p>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+          <button type="button" class="close-modal-btn px-4 py-2 rounded-xl text-slate-700 hover:bg-slate-100 font-semibold">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm">
+            Save Configuration
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Kiosk Exit PIN Prompt -->
+  <div id="pin-modal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full border border-slate-200 shadow-xl p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-slate-900">Enter Teacher PIN</h3>
+        <button type="button" class="close-modal-btn text-slate-400 hover:text-slate-700">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <p class="text-xs text-slate-500">Enter your configured teacher PIN to exit Student Kiosk Mode.</p>
+      <form id="pin-verify-form" class="space-y-3">
+        <input type="password" id="pin-input" inputmode="numeric" placeholder="••••" required
+          class="w-full px-4 py-2.5 text-center tracking-widest text-lg font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <button type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">
+          Unlock Teacher Dashboard
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Confirm Reset Action -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full border border-slate-200 shadow-xl p-6 space-y-4">
+      <div class="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-lg">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-slate-900">Reset All HallPass Data?</h3>
+        <p class="text-xs text-slate-500 mt-1">This will permanently clear all active passes, waitlist items, and historical logs stored in this browser.</p>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" class="close-modal-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100">
+          Cancel
+        </button>
+        <button type="button" id="confirm-reset-execute" class="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white">
+          Yes, Clear Everything
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: GitHub Pages Setup Guide -->
+  <div id="guide-modal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+        <h3 class="text-base sm:text-lg font-bold flex items-center gap-2">
+          <i class="fa-brands fa-github text-xl"></i>
+          <span>Deploy Free on GitHub Pages (2 Minutes)</span>
+        </h3>
+        <button type="button" class="close-modal-btn text-slate-300 hover:text-white p-1.5 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-5 text-sm text-slate-700">
+        <p class="text-slate-600">
+          This entire application is self-contained inside a single HTML file with zero external database dependencies. Follow these 4 steps to host it free for your classroom or school:
+        </p>
+
+        <ol class="space-y-4">
+          <li class="flex gap-3">
+            <span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-xs">1</span>
+            <div>
+              <h4 class="font-bold text-slate-900">Save this file as <code class="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700">index.html</code></h4>
+              <p class="text-xs text-slate-600 mt-0.5">Download or copy this code and save it on your computer with the exact filename <strong>index.html</strong>.</p>
+            </div>
+          </li>
+
+          <li class="flex gap-3">
+            <span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-xs">2</span>
+            <div>
+              <h4 class="font-bold text-slate-900">Create a New GitHub Repository</h4>
+              <p class="text-xs text-slate-600 mt-0.5">Log in to <a href="https://github.com" target="_blank" rel="noopener" class="text-indigo-600 underline font-medium">github.com</a>, click <strong>+ &rarr; New repository</strong>, name it <code class="bg-slate-100 px-1.5 py-0.5 rounded">school-hallpass</code>, keep it <strong>Public</strong>, and click <strong>Create repository</strong>.</p>
+            </div>
+          </li>
+
+          <li class="flex gap-3">
+            <span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-xs">3</span>
+            <div>
+              <h4 class="font-bold text-slate-900">Upload <code class="bg-slate-100 px-1.5 py-0.5 rounded">index.html</code></h4>
+              <p class="text-xs text-slate-600 mt-0.5">Click <strong>uploading an existing file</strong> on your repository page, drag and drop your <code class="bg-slate-100 px-1 rounded">index.html</code> file, and click <strong>Commit changes</strong>.</p>
+            </div>
+          </li>
+
+          <li class="flex gap-3">
+            <span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-xs">4</span>
+            <div>
+              <h4 class="font-bold text-slate-900">Enable GitHub Pages</h4>
+              <p class="text-xs text-slate-600 mt-0.5">Go to <strong>Settings &rarr; Pages</strong> in your repository. Under <em>Build and deployment &rarr; Branch</em>, select <strong>main</strong> and <strong>/(root)</strong>, then click <strong>Save</strong>. Your live kiosk URL (<code class="bg-slate-100 px-1 rounded">https://username.github.io/school-hallpass/</code>) will appear in ~60 seconds!</p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 flex gap-2.5">
+          <i class="fa-solid fa-lightbulb text-amber-600 text-base shrink-0 mt-0.5"></i>
+          <div>
+            <strong>Classroom Kiosk Tip:</strong> Bookmark your GitHub Pages URL on a classroom Chromebook or iPad, click <strong>Kiosk Mode</strong> in the top bar, and set a 4-digit Teacher PIN in Settings so students can sign themselves out and back in smoothly.
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex justify-end">
+        <button type="button" class="close-modal-btn px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs">
+          Got It
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application JavaScript -->
+  <script>
+    (function () {
+      'use strict';
+
+      /* ==========================================================================
+         1. CONSTANTS & DEFAULT CONFIGURATION
+         ========================================================================== */
+      const STORAGE_KEY = 'hallpass_pro_state_v1';
+
+      const ALL_POSSIBLE_GRADES = ['5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+
+      const DESTINATIONS = [
+        { id: 'Bathroom', label: 'Bathroom', icon: 'fa-restroom', color: 'indigo' },
+        { id: 'Nurse', label: 'Nurse', icon: 'fa-kit-medical', color: 'rose' },
+        { id: 'Office', label: 'Office', icon: 'fa-building-user', color: 'slate' },
+        { id: 'Locker', label: 'Locker', icon: 'fa-lock', color: 'amber' },
+        { id: 'Counselor', label: 'Counselor', icon: 'fa-comments', color: 'purple' },
+        { id: 'Water', label: 'Water', icon: 'fa-droplet', color: 'sky' },
+      ];
+
+      const DEFAULT_CONFIG = {
+        schoolName: 'Oakridge School HallPass',
+        enabledGrades: ['6th', '7th', '8th', '9th', '10th', '11th', '12th'],
+        maxPerGrade: 2,
+        maxBathroomTotal: 4,
+        warnMinutes: 5,
+        critMinutes: 10,
+        kioskPin: '',
+      };
+
+      /* ==========================================================================
+         2. APPLICATION STATE & PERSISTENCE
+         ========================================================================== */
+      let state = {
+        config: { ...DEFAULT_CONFIG },
+        activePasses: [],  // { id, studentName, grade, destination, roomTeacher, startTime }
+        waitlist: [],      // { id, studentName, grade, destination, roomTeacher, requestedAt }
+        history: [],       // { id, studentName, grade, destination, roomTeacher, startTime, endTime, durationSec, wasOvertime }
+        selectedGradeFilter: 'ALL',
+        kioskMode: false,
+      };
+
+      /**
+       * Load state safely from localStorage
+       */
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            state.config = { ...DEFAULT_CONFIG, ...(parsed.config || {}) };
+            if (!Array.isArray(state.config.enabledGrades) || state.config.enabledGrades.length === 0) {
+              state.config.enabledGrades = [...DEFAULT_CONFIG.enabledGrades];
+            }
+            state.activePasses = Array.isArray(parsed.activePasses) ? parsed.activePasses : [];
+            state.waitlist = Array.isArray(parsed.waitlist) ? parsed.waitlist : [];
+            state.history = Array.isArray(parsed.history) ? parsed.history : [];
+            state.selectedGradeFilter = parsed.selectedGradeFilter || 'ALL';
+            state.kioskMode = Boolean(parsed.kioskMode);
+          }
+        } catch (err) {
+          console.error('Failed to parse saved HallPass state:', err);
+        }
+      }
+
+      /**
+       * Persist current state to localStorage
+       */
+      function saveState() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (err) {
+          console.error('Failed to save HallPass state:', err);
+          showToast('Storage quota warning: Unable to save changes locally.', 'error');
+        }
+      }
+
+      /* ==========================================================================
+         3. UTILITY & FORMATTING HELPERS
+         ========================================================================== */
+      function generateId() {
+        return 'hp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function formatDuration(totalSeconds) {
+        const secs = Math.max(0, Math.floor(totalSeconds));
+        const mins = Math.floor(secs / 60);
+        const remSecs = secs % 60;
+        if (mins >= 60) {
+          const hrs = Math.floor(mins / 60);
+          const remMins = mins % 60;
+          return `${hrs}h ${remMins}m ${remSecs}s`;
+        }
+        return `${mins}m ${remSecs.toString().padStart(2, '0')}s`;
+      }
+
+      function formatTimerMMSS(totalSeconds) {
+        const secs = Math.max(0, Math.floor(totalSeconds));
+        const mins = Math.floor(secs / 60);
+        const remSecs = secs % 60;
+        return `${mins.toString().padStart(2, '0')}:${remSecs.toString().padStart(2, '0')}`;
+      }
+
+      function formatClockTime(timestamp) {
+        return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      }
+
+      function getDestinationMeta(destId) {
+        return DESTINATIONS.find((d) => d.id === destId) || DESTINATIONS[0];
+      }
+
+      /**
+       * Non-blocking toast message system (Replaces alert())
+       */
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+
+        const styles = {
+          success: 'bg-emerald-900 text-white border-emerald-700',
+          warning: 'bg-amber-900 text-white border-amber-700',
+          error: 'bg-rose-900 text-white border-rose-700',
+          info: 'bg-slate-900 text-white border-slate-700',
+        };
+
+        const icons = {
+          success: 'fa-circle-check text-emerald-400',
+          warning: 'fa-triangle-exclamation text-amber-400',
+          error: 'fa-circle-xmark text-rose-400',
+          info: 'fa-circle-info text-indigo-400',
+        };
+
+        toast.className = `pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg text-xs sm:text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${styles[type] || styles.info}`;
+        toast.innerHTML = `
+          <i class="fa-solid ${icons[type] || icons.info} mt-0.5 text-base shrink-0"></i>
+          <div class="flex-1 leading-snug">${escapeHtml(message)}</div>
+        `;
+
+        container.appendChild(toast);
+        requestAnimationFrame(() => {
+          toast.classList.remove('translate-y-2', 'opacity-0');
+        });
+
+        setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-2');
+          setTimeout(() => toast.remove(), 300);
+        }, 4200);
+      }
+
+      /* ==========================================================================
+         4. CAPACITY & BUSINESS LOGIC
+         ========================================================================== */
+      function getActiveCountForGrade(grade) {
+        return state.activePasses.filter((p) => p.grade === grade).length;
+      }
+
+      function getActiveBathroomCount() {
+        return state.activePasses.filter((p) => p.destination === 'Bathroom').length;
+      }
+
+      /**
+       * Checks whether a new pass can be issued immediately or must be queued
+       */
+      function checkCapacityStatus(grade, destination) {
+        const gradeActive = getActiveCountForGrade(grade);
+        if (gradeActive >= state.config.maxPerGrade) {
+          return {
+            allowed: false,
+            reason: `${grade} Grade is at max capacity (${gradeActive}/${state.config.maxPerGrade} out).`,
+          };
+        }
+        if (destination === 'Bathroom') {
+          const bathActive = getActiveBathroomCount();
+          if (bathActive >= state.config.maxBathroomTotal) {
+            return {
+              allowed: false,
+              reason: `Bathroom capacity reached (${bathActive}/${state.config.maxBathroomTotal} passes active).`,
+            };
+          }
+        }
+        return { allowed: true, reason: 'Available' };
+      }
+
+      /**
+       * Issues a pass or adds student to waitlist if capacity limit is reached
+       */
+      function handleIssuePass(studentName, grade, destination, roomTeacher) {
+        const cleanName = studentName.trim();
+        if (!cleanName) {
+          showToast('Please enter the student’s name.', 'error');
+          return;
+        }
+
+        // Prevent duplicate active pass for the exact same student name & grade
+        const alreadyOut = state.activePasses.some(
+          (p) => p.studentName.toLowerCase() === cleanName.toLowerCase() && p.grade === grade
+        );
+        if (alreadyOut) {
+          showToast(`${cleanName} (${grade}) already has an active hall pass!`, 'warning');
+          return;
+        }
+
+        const cap = checkCapacityStatus(grade, destination);
+        if (!cap.allowed) {
+          // Add to waitlist queue
+          const alreadyQueued = state.waitlist.some(
+            (w) => w.studentName.toLowerCase() === cleanName.toLowerCase() && w.grade === grade
+          );
+          if (alreadyQueued) {
+            showToast(`${cleanName} is already on the waitlist queue.`, 'warning');
+            return;
+          }
+
+          state.waitlist.push({
+            id: generateId(),
+            studentName: cleanName,
+            grade,
+            destination,
+            roomTeacher: roomTeacher.trim(),
+            requestedAt: Date.now(),
+          });
+          saveState();
+          renderAll();
+          showToast(`${cap.reason} Added ${cleanName} to the waitlist queue.`, 'warning');
+          return;
+        }
+
+        // Start active pass immediately
+        state.activePasses.unshift({
+          id: generateId(),
+          studentName: cleanName,
+          grade,
+          destination,
+          roomTeacher: roomTeacher.trim(),
+          startTime: Date.now(),
+        });
+
+        saveState();
+        renderAll();
+        showToast(`Pass started for ${cleanName} (${grade} → ${destination}).`, 'success');
+      }
+
+      /**
+       * Completes an active pass, logs to history, and checks waitlist
+       */
+      function checkInPass(passId) {
+        const idx = state.activePasses.findIndex((p) => p.id === passId);
+        if (idx === -1) return;
+
+        const pass = state.activePasses[idx];
+        const endTime = Date.now();
+        const durationSec = Math.max(1, Math.round((endTime - pass.startTime) / 1000));
+        const wasOvertime = durationSec >= state.config.warnMinutes * 60;
+
+        state.activePasses.splice(idx, 1);
+
+        state.history.unshift({
+          id: pass.id,
+          studentName: pass.studentName,
+          grade: pass.grade,
+          destination: pass.destination,
+          roomTeacher: pass.roomTeacher,
+          startTime: pass.startTime,
+          endTime,
+          durationSec,
+          wasOvertime,
+        });
+
+        saveState();
+        renderAll();
+
+        // Check if someone in the waitlist now qualifies
+        const nextEligible = state.waitlist.find((w) => checkCapacityStatus(w.grade, w.destination).allowed);
+        if (nextEligible) {
+          showToast(
+            `${pass.studentName} returned! Spot open for ${nextEligible.studentName} (${nextEligible.grade}) on waitlist.`,
+            'info'
+          );
+        } else {
+          showToast(`${pass.studentName} checked back in (${formatDuration(durationSec)}).`, 'success');
+        }
+      }
+
+      /**
+       * Promotes a student from waitlist to active pass if capacity permits
+       */
+      function promoteFromWaitlist(waitId) {
+        const idx = state.waitlist.findIndex((w) => w.id === waitId);
+        if (idx === -1) return;
+
+        const item = state.waitlist[idx];
+        const cap = checkCapacityStatus(item.grade, item.destination);
+        if (!cap.allowed) {
+          showToast(`Cannot start pass yet: ${cap.reason}`, 'warning');
+          return;
+        }
+
+        state.waitlist.splice(idx, 1);
+        state.activePasses.unshift({
+          id: generateId(),
+          studentName: item.studentName,
+          grade: item.grade,
+          destination: item.destination,
+          roomTeacher: item.roomTeacher,
+          startTime: Date.now(),
+        });
+
+        saveState();
+        renderAll();
+        showToast(`Pass started for ${item.studentName} from waitlist!`, 'success');
+      }
+
+      function removeFromWaitlist(waitId) {
+        state.waitlist = state.waitlist.filter((w) => w.id !== waitId);
+        saveState();
+        renderAll();
+      }
+
+      /* ==========================================================================
+         5. UI RENDERING FUNCTIONS
+         ========================================================================== */
+      function updateLiveClock() {
+        const now = new Date();
+        const clockEl = document.getElementById('live-clock');
+        const dateEl = document.getElementById('live-date');
+        if (clockEl) {
+          clockEl.textContent = now.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          });
+        }
+        if (dateEl) {
+          dateEl.textContent = now.toLocaleDateString([], {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          });
+        }
+      }
+
+      function renderHeaderAndMode() {
+        document.getElementById('school-title-display').textContent = state.config.schoolName;
+        document.getElementById('capacity-rule-badge').textContent =
+          `Max ${state.config.maxPerGrade} out / grade • ${state.config.maxBathroomTotal} bathroom max`;
+        document.getElementById('kpi-warn-min').textContent = state.config.warnMinutes;
+        document.getElementById('legend-warn').textContent = `${state.config.warnMinutes}m`;
+        document.getElementById('legend-crit').textContent = `${state.config.critMinutes}m`;
+
+        const kioskBadge = document.getElementById('kiosk-badge');
+        const kioskBtn = document.getElementById('toggle-kiosk-btn');
+        const kioskBtnLabel = document.getElementById('kiosk-btn-label');
+        const formHeading = document.getElementById('form-heading');
+        const formSubheading = document.getElementById('form-subheading');
+        const teacherOnlyEls = document.querySelectorAll('.teacher-only');
+
+        if (state.kioskMode) {
+          kioskBadge.classList.remove('hidden');
+          kioskBtn.classList.remove('bg-slate-100', 'text-slate-700', 'border-slate-300');
+          kioskBtn.classList.add('bg-amber-500', 'text-white', 'border-amber-600');
+          kioskBtnLabel.textContent = 'Exit Kiosk';
+          formHeading.textContent = 'Student Hall Pass Sign-Out';
+          formSubheading.textContent = 'Enter your name, grade, and destination before leaving class.';
+          teacherOnlyEls.forEach((el) => el.classList.add('hidden'));
+        } else {
+          kioskBadge.classList.add('hidden');
+          kioskBtn.classList.add('bg-slate-100', 'text-slate-700', 'border-slate-300');
+          kioskBtn.classList.remove('bg-amber-500', 'text-white', 'border-amber-600');
+          kioskBtnLabel.textContent = 'Kiosk Mode';
+          formHeading.textContent = 'Issue New Hall Pass';
+          formSubheading.textContent = 'Sign a student out and start their live pass timer.';
+          teacherOnlyEls.forEach((el) => el.classList.remove('hidden'));
+        }
+      }
+
+      function renderGradeFiltersAndCapacity() {
+        const pillsContainer = document.getElementById('grade-filter-pills');
+        const capGrid = document.getElementById('grade-capacity-grid');
+        const grades = state.config.enabledGrades;
+
+        // Ensure valid selected filter
+        if (state.selectedGradeFilter !== 'ALL' && !grades.includes(state.selectedGradeFilter)) {
+          state.selectedGradeFilter = 'ALL';
+        }
+
+        // 1. Render Filter Pills
+        let pillsHtml = `
+          <button type="button" data-grade-filter="ALL"
+            class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition border ${
+              state.selectedGradeFilter === 'ALL'
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }">
+            All Grades (${state.activePasses.length})
+          </button>
+        `;
+
+        grades.forEach((g) => {
+          const count = getActiveCountForGrade(g);
+          const isSelected = state.selectedGradeFilter === g;
+          pillsHtml += `
+            <button type="button" data-grade-filter="${escapeHtml(g)}"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition border ${
+                isSelected
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }">
+              ${escapeHtml(g)} <span class="opacity-80">(${count})</span>
+            </button>
+          `;
+        });
+        pillsContainer.innerHTML = pillsHtml;
+
+        // 2. Render Per-Grade Capacity Meter Strip
+        capGrid.innerHTML = grades
+          .map((g) => {
+            const count = getActiveCountForGrade(g);
+            const max = state.config.maxPerGrade;
+            const pct = Math.min(100, Math.round((count / max) * 100));
+            const isFull = count >= max;
+            const barColor = isFull ? 'bg-rose-500' : count > 0 ? 'bg-amber-500' : 'bg-emerald-500';
+            const badgeStyle = isFull
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-slate-50 border-slate-200 text-slate-700';
+
+            return `
+              <div class="rounded-xl border px-3 py-2 ${badgeStyle} transition">
+                <div class="flex items-center justify-between text-xs font-bold">
+                  <span>${escapeHtml(g)} Grade</span>
+                  <span class="tabular-nums">${count}/${max}</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1.5">
+                  <div class="h-full ${barColor} transition-all duration-300" style="width: ${pct}%"></div>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      function renderFormControls() {
+        const gradeSelect = document.getElementById('student-grade');
+        const currentVal = gradeSelect.value;
+
+        gradeSelect.innerHTML = state.config.enabledGrades
+          .map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)} Grade</option>`)
+          .join('');
+
+        if (currentVal && state.config.enabledGrades.includes(currentVal)) {
+          gradeSelect.value = currentVal;
+        } else if (state.selectedGradeFilter !== 'ALL' && state.config.enabledGrades.includes(state.selectedGradeFilter)) {
+          gradeSelect.value = state.selectedGradeFilter;
+        }
+
+        // Destination Quick-Select Tiles
+        const destGrid = document.getElementById('destination-grid');
+        const selectedDest = document.getElementById('selected-destination').value || 'Bathroom';
+
+        destGrid.innerHTML = DESTINATIONS.map((dest) => {
+          const isSelected = dest.id === selectedDest;
+          return `
+            <button type="button" data-dest-choice="${dest.id}"
+              class="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left text-xs font-bold transition ${
+                isSelected
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-800 ring-1 ring-indigo-600'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }">
+              <i class="fa-solid ${dest.icon} ${isSelected ? 'text-indigo-600' : 'text-slate-400'} w-4 text-center"></i>
+              <span class="truncate">${dest.label}</span>
+            </button>
+          `;
+        }).join('');
+
+        updateAvailabilityHints();
+      }
+
+      function updateAvailabilityHints() {
+        const grade = document.getElementById('student-grade').value;
+        const dest = document.getElementById('selected-destination').value;
+        const hintEl = document.getElementById('grade-availability-hint');
+        const destHintEl = document.getElementById('dest-availability-hint');
+        const submitBtn = document.getElementById('issue-submit-btn');
+        const submitText = document.getElementById('issue-btn-text');
+
+        if (!grade) return;
+
+        const cap = checkCapacityStatus(grade, dest);
+        const gradeCount = getActiveCountForGrade(grade);
+
+        if (cap.allowed) {
+          hintEl.className = 'text-xs mt-1.5 font-medium text-emerald-600 flex items-center gap-1';
+          hintEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${escapeHtml(grade)} Grade open (${gradeCount}/${state.config.maxPerGrade} active passes)`;
+          submitBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+          submitBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+          submitText.textContent = 'Start Hall Pass';
+        } else {
+          hintEl.className = 'text-xs mt-1.5 font-semibold text-amber-700 flex items-center gap-1';
+          hintEl.innerHTML = `<i class="fa-solid fa-clock"></i> ${escapeHtml(cap.reason)} Submitting will add to waitlist.`;
+          submitBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+          submitBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
+          submitText.textContent = 'Join Waitlist Queue';
+        }
+
+        if (dest === 'Bathroom') {
+          const bathOut = getActiveBathroomCount();
+          destHintEl.textContent = `Schoolwide Bathroom Passes: ${bathOut} of ${state.config.maxBathroomTotal} in use.`;
+        } else {
+          destHintEl.textContent = '';
+        }
+      }
+
+      function renderWaitlist() {
+        const panel = document.getElementById('waitlist-panel');
+        const container = document.getElementById('waitlist-items');
+        const badgeCount = document.getElementById('waitlist-badge-count');
+
+        if (state.waitlist.length === 0) {
+          panel.classList.add('hidden');
+          return;
+        }
+
+        panel.classList.remove('hidden');
+        badgeCount.textContent = state.waitlist.length;
+
+        container.innerHTML = state.waitlist
+          .map((item, index) => {
+            const canStartNow = checkCapacityStatus(item.grade, item.destination).allowed;
+            return `
+              <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border ${
+                canStartNow ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50/60 border-amber-200'
+              }">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-extrabold text-slate-500">#${index + 1}</span>
+                    <span class="text-xs font-bold text-slate-900 truncate">${escapeHtml(item.studentName)}</span>
+                    <span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-white border border-slate-200 text-slate-700">${escapeHtml(item.grade)}</span>
+                  </div>
+                  <div class="text-[11px] text-slate-600 mt-0.5">
+                    ${escapeHtml(item.destination)} ${item.roomTeacher ? '• ' + escapeHtml(item.roomTeacher) : ''}
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button type="button" data-promote-wait="${item.id}"
+                    class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                      canStartNow
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                        : 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                    }"
+                    title="${canStartNow ? 'Start pass now' : 'Waiting for open spot'}">
+                    Start
+                  </button>
+                  <button type="button" data-remove-wait="${item.id}"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                    title="Remove from queue">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      /**
+       * Renders Active Passes Live Board & updates live timers + KPIs
+       */
+      function renderActivePassesAndTimers() {
+        const listEl = document.getElementById('active-passes-list');
+        const emptyEl = document.getElementById('active-passes-empty');
+        const filterLabelEl = document.getElementById('active-filter-label');
+
+        const now = Date.now();
+        const warnSec = state.config.warnMinutes * 60;
+        const critSec = state.config.critMinutes * 60;
+
+        // Calculate global KPIs
+        let overtimeGlobal = 0;
+        state.activePasses.forEach((p) => {
+          const elapsed = Math.floor((now - p.startTime) / 1000);
+          if (elapsed >= warnSec) overtimeGlobal++;
+        });
+
+        document.getElementById('kpi-active-count').textContent = state.activePasses.length;
+        document.getElementById('kpi-overtime-count').textContent = overtimeGlobal;
+        document.getElementById('kpi-queue-count').textContent = state.waitlist.length;
+        document.getElementById('kpi-completed-count').textContent = state.history.length;
+
+        // Filter active passes for display
+        const visiblePasses =
+          state.selectedGradeFilter === 'ALL'
+            ? state.activePasses
+            : state.activePasses.filter((p) => p.grade === state.selectedGradeFilter);
+
+        filterLabelEl.textContent =
+          state.selectedGradeFilter === 'ALL'
+            ? `Showing: All Grades (${visiblePasses.length})`
+            : `Showing: ${state.selectedGradeFilter} Grade (${visiblePasses.length})`;
+
+        if (visiblePasses.length === 0) {
+          listEl.innerHTML = '';
+          listEl.classList.add('hidden');
+          emptyEl.classList.remove('hidden');
+          return;
+        }
+
+        emptyEl.classList.add('hidden');
+        listEl.classList.remove('hidden');
+
+        listEl.innerHTML = visiblePasses
+          .map((pass) => {
+            const elapsedSec = Math.max(0, Math.floor((now - pass.startTime) / 1000));
+            const isCrit = elapsedSec >= critSec;
+            const isWarn = !isCrit && elapsedSec >= warnSec;
+
+            let cardClasses = 'bg-white border-slate-200';
+            let timerBadgeClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            let statusLabel = 'Active';
+
+            if (isCrit) {
+              cardClasses = 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-300';
+              timerBadgeClasses = 'bg-rose-600 text-white border-rose-700 animate-pulse';
+              statusLabel = 'Overdue Alert';
+            } else if (isWarn) {
+              cardClasses = 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-200';
+              timerBadgeClasses = 'bg-amber-500 text-white border-amber-600';
+              statusLabel = 'Time Warning';
+            }
+
+            const destMeta = getDestinationMeta(pass.destination);
+
+            return `
+              <div class="rounded-2xl border p-4 shadow-xs transition flex flex-col justify-between gap-3 ${cardClasses}">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <h3 class="font-bold text-slate-900 text-base truncate">${escapeHtml(pass.studentName)}</h3>
+                      <span class="px-2 py-0.5 text-xs font-extrabold rounded-md bg-indigo-100 text-indigo-800">
+                        ${escapeHtml(pass.grade)}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-slate-600 mt-1.5 flex-wrap">
+                      <span class="inline-flex items-center gap-1 font-semibold text-slate-800">
+                        <i class="fa-solid ${destMeta.icon} text-indigo-600"></i>
+                        ${escapeHtml(pass.destination)}
+                      </span>
+                      ${
+                        pass.roomTeacher
+                          ? `<span class="text-slate-400">&bull;</span><span class="truncate">${escapeHtml(pass.roomTeacher)}</span>`
+                          : ''
+                      }
+                    </div>
+                  </div>
+
+                  <!-- Live Running Timer Pill -->
+                  <div class="text-right shrink-0">
+                    <div class="px-2.5 py-1 rounded-xl border text-sm font-extrabold tabular-nums ${timerBadgeClasses}">
+                      ${formatTimerMMSS(elapsedSec)}
+                    </div>
+                    <div class="text-[10px] font-semibold mt-1 ${
+                      isCrit ? 'text-rose-700' : isWarn ? 'text-amber-700' : 'text-slate-400'
+                    }">
+                      ${statusLabel}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-2.5 border-t border-slate-200/70 gap-2">
+                  <span class="text-xs text-slate-500">
+                    <i class="fa-regular fa-clock mr-1"></i>Left at <strong>${formatClockTime(pass.startTime)}</strong>
+                  </span>
+                  <button type="button" data-checkin-id="${pass.id}"
+                    class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-check"></i>
+                    <span>Check In / Return</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      function renderHistoryAndAnalytics() {
+        const tbody = document.getElementById('history-table-body');
+        const searchQuery = (document.getElementById('history-search').value || '').trim().toLowerCase();
+        const destFilter = document.getElementById('history-dest-filter').value;
+        const statusFilter = document.getElementById('history-status-filter').value;
+
+        // 1. Analytics Summary
+        const total = state.history.length;
+        document.getElementById('analytics-total-passes').textContent = `${total} total`;
+
+        if (total === 0) {
+          document.getElementById('analytics-avg-duration').textContent = '0m 0s';
+          document.getElementById('analytics-ontime-rate').textContent = '100%';
+        } else {
+          const totalSec = state.history.reduce((acc, item) => acc + item.durationSec, 0);
+          const avgSec = Math.round(totalSec / total);
+          const onTimeCount = state.history.filter((item) => !item.wasOvertime).length;
+          const onTimePct = Math.round((onTimeCount / total) * 100);
+
+          document.getElementById('analytics-avg-duration').textContent = formatDuration(avgSec);
+          document.getElementById('analytics-ontime-rate').textContent = `${onTimePct}%`;
+        }
+
+        // Grade Bars
+        const gradeBarsEl = document.getElementById('analytics-grade-bars');
+        gradeBarsEl.innerHTML = state.config.enabledGrades
+          .map((g) => {
+            const count = state.history.filter((h) => h.grade === g).length;
+            const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+            return `
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs font-medium">
+                  <span class="text-slate-700">${escapeHtml(g)} Grade</span>
+                  <span class="text-slate-500 tabular-nums">${count} (${pct}%)</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-indigo-500 rounded-full" style="width: ${pct}%"></div>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+
+        // Top Destinations Bars
+        const destBarsEl = document.getElementById('analytics-dest-bars');
+        const destCounts = DESTINATIONS.map((d) => ({
+          label: d.label,
+          count: state.history.filter((h) => h.destination === d.id).length,
+        }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 4);
+
+        destBarsEl.innerHTML = destCounts
+          .map((item) => {
+            const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+            return `
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs font-medium">
+                  <span class="text-slate-700">${escapeHtml(item.label)}</span>
+                  <span class="text-slate-500 tabular-nums">${item.count} (${pct}%)</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-emerald-500 rounded-full" style="width: ${pct}%"></div>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+
+        // 2. Filter History Rows
+        const filtered = state.history.filter((item) => {
+          if (state.selectedGradeFilter !== 'ALL' && item.grade !== state.selectedGradeFilter) return false;
+          if (destFilter !== 'ALL' && item.destination !== destFilter) return false;
+          if (statusFilter === 'ONTIME' && item.wasOvertime) return false;
+          if (statusFilter === 'OVERTIME' && !item.wasOvertime) return false;
+          if (searchQuery) {
+            const hay = `${item.studentName} ${item.grade} ${item.destination} ${item.roomTeacher || ''}`.toLowerCase();
+            if (!hay.includes(searchQuery)) return false;
+          }
+          return true;
+        });
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="6" class="px-4 py-8 text-center text-xs text-slate-500">
+                No completed hall pass records match the current filters.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = filtered
+          .map((item) => {
+            const durBadge = item.wasOvertime
+              ? 'bg-amber-100 text-amber-800 border-amber-200'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+            return `
+              <tr class="hover:bg-slate-50/80 transition">
+                <td class="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">${escapeHtml(item.studentName)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span class="px-2 py-0.5 text-xs font-bold rounded bg-slate-100 text-slate-700">${escapeHtml(item.grade)}</span>
+                </td>
+                <td class="px-4 py-3 text-slate-700 whitespace-nowrap">${escapeHtml(item.destination)}</td>
+                <td class="px-4 py-3 text-slate-500 whitespace-nowrap">${escapeHtml(item.roomTeacher || '—')}</td>
+                <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap tabular-nums">
+                  ${formatClockTime(item.startTime)} &rarr; ${formatClockTime(item.endTime)}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span class="px-2 py-0.5 text-xs font-bold rounded-md border tabular-nums ${durBadge}">
+                    ${formatDuration(item.durationSec)}
+                  </span>
+                </td>
+              </tr>
+            `;
+          })
+          .join('');
+      }
+
+      function renderAll() {
+        renderHeaderAndMode();
+        renderGradeFiltersAndCapacity();
+        renderFormControls();
+        renderWaitlist();
+        renderActivePassesAndTimers();
+        renderHistoryAndAnalytics();
+      }
+
+      /* ==========================================================================
+         6. CSV EXPORT & DEMO DATA
+         ========================================================================== */
+      function exportHistoryToCSV() {
+        if (state.history.length === 0) {
+          showToast('No completed hall pass history to export yet.', 'warning');
+          return;
+        }
+
+        const headers = [
+          'Date',
+          'Student Name',
+          'Grade Level',
+          'Destination',
+          'Room / Teacher',
+          'Time Out',
+          'Time In',
+          'Duration (Seconds)',
+          'Duration Formatted',
+          'Overtime Status',
+        ];
+
+        const rows = state.history.map((item) => {
+          const dOut = new Date(item.startTime);
+          const dIn = new Date(item.endTime);
+          return [
+            dOut.toLocaleDateString(),
+            `"${(item.studentName || '').replace(/"/g, '""')}"`,
+            `"${(item.grade || '').replace(/"/g, '""')}"`,
+            `"${(item.destination || '').replace(/"/g, '""')}"`,
+            `"${(item.roomTeacher || '').replace(/"/g, '""')}"`,
+            dOut.toLocaleTimeString(),
+            dIn.toLocaleTimeString(),
+            item.durationSec,
+            `"${formatDuration(item.durationSec)}"`,
+            item.wasOvertime ? 'Overtime' : 'On-Time',
+          ].join(',');
+        });
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const dateStamp = new Date().toISOString().slice(0, 10);
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', `hallpass_records_${dateStamp}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showToast(`Exported ${state.history.length} pass records to CSV.`, 'success');
+      }
+
+      function loadDemoData() {
+        const now = Date.now();
+        const grades = state.config.enabledGrades;
+        const g1 = grades[0] || '6th';
+        const g2 = grades[1] || '7th';
+        const g3 = grades[grades.length - 1] || '12th';
+
+        state.activePasses = [
+          {
+            id: generateId(),
+            studentName: 'Jordan Rivera',
+            grade: g1,
+            destination: 'Bathroom',
+            roomTeacher: 'Rm 108 / Ms. Patel',
+            startTime: now - 145 * 1000, // 2m 25s ago (green)
+          },
+          {
+            id: generateId(),
+            studentName: 'Ava Chen',
+            grade: g2,
+            destination: 'Nurse',
+            roomTeacher: 'Rm 214 / Mr. Brooks',
+            startTime: now - (state.config.warnMinutes * 60 + 40) * 1000, // yellow warning
+          },
+          {
+            id: generateId(),
+            studentName: 'Marcus Vance',
+            grade: g3,
+            destination: 'Bathroom',
+            roomTeacher: 'Rm 302 / Mrs. Gomez',
+            startTime: now - (state.config.critMinutes * 60 + 75) * 1000, // red alert
+          },
+        ];
+
+        state.history = [
+          {
+            id: generateId(),
+            studentName: 'Liam O’Connor',
+            grade: g1,
+            destination: 'Bathroom',
+            roomTeacher: 'Rm 108 / Ms. Patel',
+            startTime: now - 3600 * 1000,
+            endTime: now - 3600 * 1000 + 210 * 1000,
+            durationSec: 210,
+            wasOvertime: false,
+          },
+          {
+            id: generateId(),
+            studentName: 'Sofia Morales',
+            grade: g2,
+            destination: 'Water',
+            roomTeacher: 'Rm 210 / Mr. Davis',
+            startTime: now - 2700 * 1000,
+            endTime: now - 2700 * 1000 + 95 * 1000,
+            durationSec: 95,
+            wasOvertime: false,
+          },
+          {
+            id: generateId(),
+            studentName: 'Ethan Kim',
+            grade: g3,
+            destination: 'Counselor',
+            roomTeacher: 'Rm 305 / Ms. Taylor',
+            startTime: now - 1800 * 1000,
+            endTime: now - 1800 * 1000 + 480 * 1000,
+            durationSec: 480,
+            wasOvertime: true,
+          },
+        ];
+
+        saveState();
+        renderAll();
+        showToast('Sample active passes & history loaded for testing.', 'info');
+      }
+
+      /* ==========================================================================
+         7. MODAL & EVENT LISTENERS
+         ========================================================================== */
+      function openModal(modalId) {
+        document.getElementById(modalId).classList.remove('hidden');
+      }
+
+      function closeAllModals() {
+        document.querySelectorAll('#settings-modal, #pin-modal, #confirm-modal, #guide-modal').forEach((m) => {
+          m.classList.add('hidden');
+        });
+      }
+
+      function populateSettingsModal() {
+        document.getElementById('cfg-school-name').value = state.config.schoolName;
+        document.getElementById('cfg-max-per-grade').value = state.config.maxPerGrade;
+        document.getElementById('cfg-max-bathroom').value = state.config.maxBathroomTotal;
+        document.getElementById('cfg-warn-mins').value = state.config.warnMinutes;
+        document.getElementById('cfg-crit-mins').value = state.config.critMinutes;
+        document.getElementById('cfg-kiosk-pin').value = state.config.kioskPin || '';
+
+        const boxContainer = document.getElementById('cfg-grades-checkboxes');
+        boxContainer.innerHTML = ALL_POSSIBLE_GRADES.map((g) => {
+          const checked = state.config.enabledGrades.includes(g) ? 'checked' : '';
+          return `
+            <label class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer text-xs font-bold text-slate-700">
+              <input type="checkbox" name="enabledGrades" value="${g}" ${checked} class="rounded text-indigo-600 focus:ring-indigo-500" />
+              <span>${g}</span>
+            </label>
+          `;
+        }).join('');
+      }
+
+      function bindEvents() {
+        // Issue Pass Form Submission
+        document.getElementById('issue-pass-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const nameInput = document.getElementById('student-name');
+          const gradeSelect = document.getElementById('student-grade');
+          const destInput = document.getElementById('selected-destination');
+          const roomInput = document.getElementById('room-teacher');
+
+          handleIssuePass(nameInput.value, gradeSelect.value, destInput.value, roomInput.value);
+          nameInput.value = '';
+          nameInput.focus();
+        });
+
+        // Update availability hint when grade selection changes
+        document.getElementById('student-grade').addEventListener('change', updateAvailabilityHints);
+
+        // Destination Quick-Select Tile Clicks
+        document.getElementById('destination-grid').addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-dest-choice]');
+          if (!btn) return;
+          document.getElementById('selected-destination').value = btn.getAttribute('data-dest-choice');
+          renderFormControls();
+        });
+
+        // Grade Filter Pill Clicks
+        document.getElementById('grade-filter-pills').addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-grade-filter]');
+          if (!btn) return;
+          state.selectedGradeFilter = btn.getAttribute('data-grade-filter');
+          if (state.selectedGradeFilter !== 'ALL') {
+            document.getElementById('student-grade').value = state.selectedGradeFilter;
+          }
+          saveState();
+          renderAll();
+        });
+
+        // Active Passes Board: Check In / Return Clicks (Event Delegation)
+        document.getElementById('active-passes-list').addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-checkin-id]');
+          if (!btn) return;
+          checkInPass(btn.getAttribute('data-checkin-id'));
+        });
+
+        // Waitlist Queue Actions (Promote or Remove)
+        document.getElementById('waitlist-items').addEventListener('click', (e) => {
+          const promoteBtn = e.target.closest('[data-promote-wait]');
+          if (promoteBtn) {
+            promoteFromWaitlist(promoteBtn.getAttribute('data-promote-wait'));
+            return;
+          }
+          const removeBtn = e.target.closest('[data-remove-wait]');
+          if (removeBtn) {
+            removeFromWaitlist(removeBtn.getAttribute('data-remove-wait'));
+          }
+        });
+
+        // History Search & Filters
+        document.getElementById('history-search').addEventListener('input', renderHistoryAndAnalytics);
+        document.getElementById('history-dest-filter').addEventListener('change', renderHistoryAndAnalytics);
+        document.getElementById('history-status-filter').addEventListener('change', renderHistoryAndAnalytics);
+
+        // Export CSV, Demo Data, Reset Buttons
+        document.getElementById('export-csv-btn').addEventListener('click', exportHistoryToCSV);
+        document.getElementById('load-demo-btn').addEventListener('click', loadDemoData);
+        document.getElementById('reset-data-btn').addEventListener('click', () => openModal('confirm-modal'));
+
+        document.getElementById('confirm-reset-execute').addEventListener('click', () => {
+          state.activePasses = [];
+          state.waitlist = [];
+          state.history = [];
+          saveState();
+          closeAllModals();
+          renderAll();
+          showToast('All hall pass data has been cleared.', 'info');
+        });
+
+        // Kiosk Mode Toggle (with optional PIN check when exiting)
+        document.getElementById('toggle-kiosk-btn').addEventListener('click', () => {
+          if (!state.kioskMode) {
+            state.kioskMode = true;
+            saveState();
+            renderAll();
+            showToast('Student Kiosk Mode enabled. Admin logs & settings are hidden.', 'info');
+          } else {
+            if (state.config.kioskPin && state.config.kioskPin.trim() !== '') {
+              document.getElementById('pin-input').value = '';
+              openModal('pin-modal');
+              setTimeout(() => document.getElementById('pin-input').focus(), 50);
+            } else {
+              state.kioskMode = false;
+              saveState();
+              renderAll();
+              showToast('Returned to Teacher Dashboard.', 'info');
+            }
+          }
+        });
+
+        // Verify Teacher PIN to exit Kiosk Mode
+        document.getElementById('pin-verify-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const entered = document.getElementById('pin-input').value.trim();
+          if (entered === state.config.kioskPin.trim()) {
+            state.kioskMode = false;
+            saveState();
+            closeAllModals();
+            renderAll();
+            showToast('PIN verified. Teacher Dashboard unlocked.', 'success');
+          } else {
+            showToast('Incorrect Teacher PIN.', 'error');
+            document.getElementById('pin-input').value = '';
+            document.getElementById('pin-input').focus();
+          }
+        });
+
+        // Settings Modal Open & Save
+        document.getElementById('open-settings-btn').addEventListener('click', () => {
+          populateSettingsModal();
+          openModal('settings-modal');
+        });
+
+        document.getElementById('settings-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const checkedBoxes = Array.from(document.querySelectorAll('input[name="enabledGrades"]:checked')).map(
+            (cb) => cb.value
+          );
+          if (checkedBoxes.length === 0) {
+            showToast('Please select at least one active grade level.', 'error');
+            return;
+          }
+
+          const warnMins = Math.max(1, parseInt(document.getElementById('cfg-warn-mins').value, 10) || 5);
+          const critMins = Math.max(warnMins + 1, parseInt(document.getElementById('cfg-crit-mins').value, 10) || 10);
+
+          state.config = {
+            schoolName: document.getElementById('cfg-school-name').value.trim() || DEFAULT_CONFIG.schoolName,
+            enabledGrades: checkedBoxes,
+            maxPerGrade: Math.max(1, parseInt(document.getElementById('cfg-max-per-grade').value, 10) || 2),
+            maxBathroomTotal: Math.max(1, parseInt(document.getElementById('cfg-max-bathroom').value, 10) || 4),
+            warnMinutes: warnMins,
+            critMinutes: critMins,
+            kioskPin: document.getElementById('cfg-kiosk-pin').value.trim(),
+          };
+
+          saveState();
+          closeAllModals();
+          renderAll();
+          showToast('Configuration rules updated!', 'success');
+        });
+
+        // GitHub Setup Guide Modal
+        document.getElementById('open-guide-btn').addEventListener('click', () => openModal('guide-modal'));
+
+        // Close Modal Buttons & Backdrop Clicks
+        document.querySelectorAll('.close-modal-btn').forEach((btn) => {
+          btn.addEventListener('click', closeAllModals);
+        });
+
+        document.querySelectorAll('#settings-modal, #pin-modal, #confirm-modal, #guide-modal').forEach((modal) => {
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeAllModals();
+          });
+        });
+      }
+
+      /* ==========================================================================
+         8. INITIALIZATION & LIVE 1-SECOND TICKER
+         ========================================================================== */
+      window.addEventListener('DOMContentLoaded', () => {
+        loadState();
+        bindEvents();
+        updateLiveClock();
+        renderAll();
+
+        // Live 1-second loop for clock and active pass timers
+        setInterval(() => {
+          updateLiveClock();
+          if (state.activePasses.length > 0) {
+            renderActivePassesAndTimers();
+          }
+        }, 1000);
+      });
+    })();
+  </script>
+</body>
+</html>
