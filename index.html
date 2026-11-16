@@ -42,6 +42,8 @@
     .grade-tabs { display:flex; gap:8px; overflow-x:auto; padding:2px 2px 12px; margin-bottom:4px; }
     .grade-tab { flex:0 0 auto; border:1px solid #cbd5e1; border-radius:12px; background:white; color:var(--ink); padding:10px 15px; min-height:48px; font-weight:750; white-space:nowrap; }
     .grade-tab[aria-selected="true"] { background:var(--blue); color:white; border-color:var(--blue); box-shadow:0 2px 6px #4f46e533; }
+    .teacher-name-card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:0 0 18px; max-width:520px; }
+    .teacher-name-card label { margin:0 0 5px; }
     .student-banner { background:linear-gradient(135deg,#eef2ff,#dbeafe); border:1px solid #c7d2fe; border-radius:16px; padding:18px 20px; margin-bottom:18px; color:#1e1b4b; }
     .student-banner strong { display:block; font-size:clamp(1.5rem,4vw,2.2rem); }
     .student-banner small { font-size:.9rem; }
@@ -63,7 +65,12 @@
   </div></header>
   <main class="wrap">
     <nav id="grade-tabs" class="grade-tabs teacher-only" aria-label="Choose a grade" role="tablist"></nav>
-    <div id="student-banner" class="student-banner hidden" aria-live="polite"><small>Selected Grade</small><strong id="student-grade-banner">6th Grade</strong><small>Hall Pass</small></div>
+    <section id="teacher-name-card" class="teacher-name-card teacher-only">
+      <label for="teacher-name">Teacher name for this grade</label>
+      <input id="teacher-name" type="text" autocomplete="name" maxlength="80" placeholder="Type the teacher's name" />
+      <p>This name will show on the Student Screen for the selected grade.</p>
+    </section>
+    <div id="student-banner" class="student-banner hidden" aria-live="polite"><small>Hall Pass</small><strong id="student-grade-banner">6th Grade</strong><small>Teacher: <span id="student-teacher-banner">Name not set</span></small></div>
     <section class="summary" aria-label="Hall pass counts">
       <div class="stat"><span>Kids Out</span><strong id="out-count">0</strong></div>
       <div class="stat"><span>Waiting</span><strong id="waiting-count">0</strong></div>
@@ -80,7 +87,7 @@
           <div id="grade-field" class="teacher-only"><label for="student-grade">Grade</label><select id="student-grade" name="grade" required></select></div>
           <label for="place">Where are you going?</label>
           <select id="place" name="place" required><option>Bathroom</option><option>Nurse</option><option>Office</option><option>Water</option><option>Locker</option><option>Counselor</option></select>
-          <label for="room">Class / room <span id="room-required-note" style="font-weight:400;color:var(--muted)">(needed for a bathroom pass)</span></label>
+          <label for="room">Class / room <span style="font-weight:400;color:var(--muted)">(needed for a bathroom pass)</span></label>
           <input id="room" name="room" autocomplete="off" placeholder="For example: Room 12" aria-describedby="room-help" />
           <p id="room-help">Use the same class or room name for everyone in your class.</p>
           <button class="btn primary" type="submit">Start</button>
@@ -111,7 +118,7 @@
       const KEY = 'school_hall_pass_state_v2';
       const GRADES = ['Pre-K', 'Kindergarten', '1st Grade', '2nd Grade', '3rd Grade', '4th Grade', '5th Grade', '6th Grade'];
       const defaults = { schoolName: 'School Hall Pass', maxPerGrade: 2, warnMinutes: 5 };
-      let state = { settings: { ...defaults }, active: [], waiting: [], history: [], savedNames: {}, studentScreen: false, selectedGrade: '6th Grade' };
+      let state = { settings: { ...defaults }, active: [], waiting: [], history: [], savedNames: {}, teacherNames: {}, studentScreen: false, selectedGrade: '6th Grade' };
       const $ = (id) => document.getElementById(id);
       const escape = (text) => String(text || '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
       const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { toast('We could not save the school data on this device.'); } };
@@ -120,7 +127,7 @@
         try {
           const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
           if (saved && typeof saved === 'object') {
-            state = { ...state, ...saved, settings: { ...defaults, ...(saved.settings || {}) }, active: Array.isArray(saved.active) ? saved.active : [], waiting: Array.isArray(saved.waiting) ? saved.waiting : [], history: Array.isArray(saved.history) ? saved.history : [], savedNames: saved.savedNames && typeof saved.savedNames === 'object' ? saved.savedNames : {} };
+            state = { ...state, ...saved, settings: { ...defaults, ...(saved.settings || {}) }, active: Array.isArray(saved.active) ? saved.active : [], waiting: Array.isArray(saved.waiting) ? saved.waiting : [], history: Array.isArray(saved.history) ? saved.history : [], savedNames: saved.savedNames && typeof saved.savedNames === 'object' ? saved.savedNames : {}, teacherNames: saved.teacherNames && typeof saved.teacherNames === 'object' ? saved.teacherNames : {} };
           }
         } catch { /* Start with a fresh state if saved data cannot be read. */ }
         if (!GRADES.includes(state.selectedGrade)) state.selectedGrade = '6th Grade';
@@ -132,22 +139,14 @@
       }
 
       function normalizeClass(room) { return String(room || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
-
       function bathroomClassIsBusy(grade, room) {
         const classKey = normalizeClass(room);
         return state.active.some((pass) => pass.destination === 'Bathroom' && pass.grade === grade && normalizeClass(pass.room) === classKey);
       }
-
       function capacityMessage(grade, destination, room) {
-        if (destination === 'Bathroom' && !normalizeClass(room)) {
-          return 'Please enter your class or room for a bathroom pass.';
-        }
-        if (destination === 'Bathroom' && bathroomClassIsBusy(grade, room)) {
-          return `Someone from ${grade}, ${room.trim()}, is already in the bathroom. Please wait.`;
-        }
-        if (state.active.filter((pass) => pass.grade === grade).length >= Number(state.settings.maxPerGrade)) {
-          return `${grade} is full. Added to the waiting list.`;
-        }
+        if (destination === 'Bathroom' && !normalizeClass(room)) return 'Please enter your class or room for a bathroom pass.';
+        if (destination === 'Bathroom' && bathroomClassIsBusy(grade, room)) return `Someone from ${grade}, ${room.trim()}, is already in the bathroom. Please wait.`;
+        if (state.active.filter((pass) => pass.grade === grade).length >= Number(state.settings.maxPerGrade)) return `${grade} is full. Added to the waiting list.`;
         return '';
       }
 
@@ -157,12 +156,10 @@
         if (!Array.isArray(state.savedNames[grade])) state.savedNames[grade] = [];
         if (!state.savedNames[grade].some((savedName) => savedName.toLowerCase() === cleanName.toLowerCase())) state.savedNames[grade].push(cleanName);
       }
-
       function renderNameSuggestions() {
         const names = Array.isArray(state.savedNames[state.selectedGrade]) ? state.savedNames[state.selectedGrade] : [];
         $('saved-student-names').innerHTML = names.map((name) => `<option value="${escape(name)}"></option>`).join('');
       }
-
       function renderTabs() {
         $('grade-tabs').innerHTML = GRADES.map((grade) => `<button type="button" role="tab" aria-selected="${state.selectedGrade === grade}" class="grade-tab" data-grade="${escape(grade)}">${escape(grade)}</button>`).join('');
         $('student-grade').value = state.selectedGrade;
@@ -172,6 +169,9 @@
         if (!GRADES.includes(state.selectedGrade)) state.selectedGrade = '6th Grade';
         $('school-title').textContent = state.settings.schoolName;
         $('student-grade-banner').textContent = state.selectedGrade;
+        const teacherName = String(state.teacherNames[state.selectedGrade] || '').trim();
+        $('student-teacher-banner').textContent = teacherName || 'Name not set';
+        $('teacher-name').value = teacherName;
         renderTabs();
         renderNameSuggestions();
 
@@ -187,6 +187,7 @@
         $('screen-toggle').textContent = state.studentScreen ? 'Teacher Screen' : 'Student Screen';
         $('student-banner').classList.toggle('hidden', !state.studentScreen);
         $('grade-tabs').classList.toggle('hidden', state.studentScreen);
+        $('teacher-name-card').classList.toggle('hidden', state.studentScreen);
         $('grade-field').classList.toggle('hidden', state.studentScreen);
         $('filter-note').textContent = `${grade} only`;
         $('form-help').textContent = state.studentScreen ? `This screen is set to ${grade}. Students can only sign out for this grade.` : `This pass is for ${grade}. Pick a grade tab above to switch grades.`;
@@ -198,17 +199,15 @@
         }).join('') : `<div class="empty">No ${escape(grade)} students are out right now.</div>`;
 
         $('waiting-list').innerHTML = waiting.length ? `<h2 style="margin-top:20px">${escape(grade)} Waiting List</h2>` + waiting.map((item, index) => `<div class="pass"><div><strong>${index + 1}. ${escape(item.name)}</strong><div class="details">${escape(item.place)}${item.room ? ' · ' + escape(item.room) : ''}</div></div><button class="btn small" data-start-wait="${escape(item.id)}" type="button">Start Pass</button></div>`).join('') : '';
-
         const query = ($('history-search')?.value || '').trim().toLowerCase();
         const rows = state.history.filter((item) => item.grade === grade && (!query || `${item.name} ${item.grade} ${item.place} ${item.room}`.toLowerCase().includes(query)));
         $('history-list').innerHTML = rows.length ? rows.slice(0, 100).map((item) => `<div class="history-row"><strong>${escape(item.name)}</strong> · ${escape(item.grade)}<br><span class="details">${escape(item.place)}${item.room ? ' · ' + escape(item.room) : ''} · ${new Date(item.startTime).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}–${new Date(item.endTime).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${Math.max(1, Math.round((item.endTime - item.startTime) / 60000))} min</span></div>`).join('') : '<p>No hall pass records for this grade yet.</p>';
       }
 
-      function startPass(name, grade, place, room, queued = false) {
+      function startPass(name, grade, place, room) {
         const cleanName = name.trim(), cleanRoom = String(room || '').trim();
         if (!cleanName) { toast('Please type the student name.'); return false; }
         if (place === 'Bathroom' && !normalizeClass(cleanRoom)) { toast('Please enter your class or room for a bathroom pass.'); $('room').focus(); return false; }
-
         const sameStudent = (pass) => pass.name.toLowerCase() === cleanName.toLowerCase() && pass.grade === grade;
         if (state.active.some(sameStudent) || state.waiting.some(sameStudent)) { toast(`${cleanName} already has a pass or is waiting.`); return false; }
 
@@ -217,46 +216,37 @@
           if (place === 'Bathroom' && bathroomClassIsBusy(grade, cleanRoom)) {
             const alreadyWaiting = state.waiting.some((item) => item.grade === grade && item.place === 'Bathroom' && normalizeClass(item.room) === normalizeClass(cleanRoom) && item.name.toLowerCase() === cleanName.toLowerCase());
             if (alreadyWaiting) { toast(`${cleanName} is already waiting for the bathroom.`); return false; }
-          } else if (place !== 'Bathroom' && state.active.filter((pass) => pass.grade === grade).length >= Number(state.settings.maxPerGrade)) {
-            const alreadyWaiting = state.waiting.some((item) => item.grade === grade && item.name.toLowerCase() === cleanName.toLowerCase());
-            if (alreadyWaiting) { toast(`${cleanName} is already on the waiting list.`); return false; }
+            state.waiting.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: cleanName, grade, place, room: cleanRoom });
+            rememberName(cleanName, grade); save(); render(); toast(reason); return true;
           }
-
-          // A bathroom class already using the bathroom goes into the waiting list.
-          // General grade limits also use the existing waiting list.
-          if (place === 'Bathroom' && !bathroomClassIsBusy(grade, cleanRoom) && state.active.filter((pass) => pass.grade === grade).length >= Number(state.settings.maxPerGrade)) {
+          if (state.active.filter((pass) => pass.grade === grade).length >= Number(state.settings.maxPerGrade)) {
             state.waiting.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: cleanName, grade, place, room: cleanRoom });
             rememberName(cleanName, grade); save(); render(); toast(`${grade} is full. Added ${cleanName} to the waiting list.`); return true;
-          }
-          if (place === 'Bathroom' && bathroomClassIsBusy(grade, cleanRoom)) {
-            state.waiting.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: cleanName, grade, place, room: cleanRoom });
-            rememberName(cleanName, grade); save(); render(); toast(reason); return true;
-          }
-          if (place !== 'Bathroom' && state.active.filter((pass) => pass.grade === grade).length >= Number(state.settings.maxPerGrade)) {
-            state.waiting.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: cleanName, grade, place, room: cleanRoom });
-            rememberName(cleanName, grade); save(); render(); toast(reason); return true;
           }
           toast(reason); return false;
         }
 
-        state.active.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: cleanName, grade, place, room: cleanRoom, startTime: Date.now() });
+        state.active.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: cleanName, grade, place, room: cleanRoom, teacherName: teacherNameFor(grade), startTime: Date.now() });
         rememberName(cleanName, grade); save(); render(); toast(`Hall pass started for ${cleanName}.`); return true;
       }
+      function teacherNameFor(grade) { return String(state.teacherNames[grade] || '').trim(); }
 
+      $('teacher-name').addEventListener('input', (e) => {
+        state.teacherNames[state.selectedGrade] = e.target.value.trim();
+        save();
+        $('student-teacher-banner').textContent = state.teacherNames[state.selectedGrade] || 'Name not set';
+      });
       $('grade-tabs').addEventListener('click', (e) => {
         const tab = e.target.closest('[data-grade]'); if (!tab) return;
         state.selectedGrade = tab.dataset.grade; save(); render(); $('student-name').focus();
       });
-
       $('pass-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const added = startPass(String(formData.get('studentName')), state.selectedGrade, String(formData.get('place')), String(formData.get('room')).trim());
         if (added) { e.currentTarget.reset(); $('student-grade').value = state.selectedGrade; $('room').required = $('place').value === 'Bathroom'; $('student-name').focus(); }
       });
-
       $('place').addEventListener('change', () => { $('room').required = $('place').value === 'Bathroom'; });
-
       $('active-list').addEventListener('click', (e) => {
         const button = e.target.closest('[data-return]'); if (!button) return;
         const index = state.active.findIndex((pass) => pass.id === button.dataset.return); if (index < 0) return;
@@ -264,7 +254,6 @@
         state.history.unshift({ ...pass, endTime: Date.now() });
         save(); render(); toast(`${pass.name} is back in class.`);
       });
-
       $('waiting-list').addEventListener('click', (e) => {
         const button = e.target.closest('[data-start-wait]'); if (!button) return;
         const index = state.waiting.findIndex((item) => item.id === button.dataset.startWait); if (index < 0) return;
@@ -272,10 +261,9 @@
         const reason = capacityMessage(item.grade, item.place, item.room);
         if (reason) { toast(reason); return; }
         state.waiting.splice(index, 1);
-        state.active.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: item.name, grade: item.grade, place: item.place, room: item.room, startTime: Date.now() });
+        state.active.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: item.name, grade: item.grade, place: item.place, room: item.room, teacherName: teacherNameFor(item.grade), startTime: Date.now() });
         rememberName(item.name, item.grade); save(); render(); toast(`Hall pass started for ${item.name}.`);
       });
-
       $('history-search').addEventListener('input', render);
       $('screen-toggle').addEventListener('click', () => { state.studentScreen = !state.studentScreen; save(); render(); });
       $('settings-open').addEventListener('click', () => {
@@ -295,7 +283,6 @@
         if (state.active.length || state.history.length) { toast('Clear the current records first to try sample data.'); return; }
         startPass('Jamie Lee', '2nd Grade', 'Bathroom', 'Room 12'); startPass('Alex Rivera', '5th Grade', 'Nurse', 'Room 8'); toast('Sample hall passes added.');
       });
-
       function setupGradeOptions() { $('student-grade').innerHTML = GRADES.map((grade) => `<option value="${escape(grade)}">${escape(grade)}</option>`).join(''); }
       setupGradeOptions(); load(); render(); setInterval(render, 30000);
     })();
