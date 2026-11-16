@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function staff() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('^[^@]+@conroeisd\\.net$');
+    }
+    function kioskFor(uid) {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'anonymous'
+        && exists(/databases/$(database)/documents/kioskSessions/$(request.auth.uid))
+        && get(/databases/$(database)/documents/kioskSessions/$(request.auth.uid)).data.active == true
+        && get(/databases/$(database)/documents/kioskSessions/$(request.auth.uid)).data.ownerUid == uid;
+    }
+    function ownerOrKiosk(uid) { return (staff() && request.auth.uid == uid) || kioskFor(uid); }
+    function shortText(v) { return v is string && v.size() > 0 && v.size() <= 80; }
+    function validGrade(v) { return v in ['Pre-K','Kindergarten','1st Grade','2nd Grade','3rd Grade','4th Grade','5th Grade','6th Grade']; }
+    function validPlace(v) { return v in ['Bathroom','Nurse','Office','Water','Locker','Counselor']; }
+    match /classrooms/{uid} {
+      allow get: if staff() && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update: if staff() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['ownerUid','teacherName','grade','room','pinSalt','pinHash','updatedAt'])
+        && request.resource.data.keys().hasAll(['ownerUid','teacherName','grade','room','pinSalt','pinHash','updatedAt'])
+        && request.resource.data.ownerUid == uid
+        && shortText(request.resource.data.teacherName)
+        && shortText(request.resource.data.room)
+        && validGrade(request.resource.data.grade)
+        && request.resource.data.pinSalt is string
+        && request.resource.data.pinSalt.matches('^[0-9a-f]{32}$')
+        && request.resource.data.pinHash is string
+        && request.resource.data.pinHash.matches('^[0-9a-f]{64}$')
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+    match /activePasses/{uid} {
+      allow get: if staff() || kioskFor(uid);
+      allow list: if staff();
+      allow create: if ownerOrKiosk(uid)
+        && exists(/databases/$(database)/documents/classrooms/$(uid))
+        && request.resource.data.keys().hasOnly(['ownerUid','teacherName','grade','room','studentName','destination','startedAt'])
+        && request.resource.data.keys().hasAll(['ownerUid','teacherName','grade','room','studentName','destination','startedAt'])
+        && request.resource.data.ownerUid == uid
+        && shortText(request.resource.data.studentName)
+        && shortText(request.resource.data.teacherName)
+        && shortText(request.resource.data.room)
+        && validGrade(request.resource.data.grade)
+        && validPlace(request.resource.data.destination)
+        && request.resource.data.startedAt == request.time
+        && request.resource.data.teacherName == get(/databases/$(database)/documents/classrooms/$(uid)).data.teacherName
+        && request.resource.data.grade == get(/databases/$(database)/documents/classrooms/$(uid)).data.grade
+        && request.resource.data.room == get(/databases/$(database)/documents/classrooms/$(uid)).data.room;
+      allow update: if false;
+      allow delete: if ownerOrKiosk(uid) && resource.data.ownerUid == uid;
+    }
+    match /classrooms/{uid}/waitlist/{entryId} {
+      allow read: if ownerOrKiosk(uid);
+      allow create: if ownerOrKiosk(uid)
+        && exists(/databases/$(database)/documents/classrooms/$(uid))
+        && request.resource.data.keys().hasOnly(['ownerUid','studentName','destination','createdAt'])
+        && request.resource.data.keys().hasAll(['ownerUid','studentName','destination','createdAt'])
+        && request.resource.data.ownerUid == uid
+        && shortText(request.resource.data.studentName)
+        && validPlace(request.resource.data.destination)
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if ownerOrKiosk(uid) && resource.data.ownerUid == uid;
+    }
+    // Completed passes are private to the classroom owner.
+    // The saved record must match the currently active pass.
+    match /classrooms/{uid}/passHistory/{passId} {
+      allow read: if staff() && request.auth.uid == uid;
+      allow create: if ownerOrKiosk(uid)
+        && exists(/databases/$(database)/documents/activePasses/$(uid))
+        && request.resource.data.keys().hasOnly(['ownerUid','studentName','destination','teacherName','grade','room','startedAt','endedAt'])
+        && request.resource.data.keys().hasAll(['ownerUid','studentName','destination','teacherName','grade','room','startedAt','endedAt'])
+        && request.resource.data.ownerUid == uid
+        && request.resource.data.endedAt == request.time
+        && request.resource.data.studentName == get(/databases/$(database)/documents/activePasses/$(uid)).data.studentName
+        && request.resource.data.destination == get(/databases/$(database)/documents/activePasses/$(uid)).data.destination
+        && request.resource.data.teacherName == get(/databases/$(database)/documents/activePasses/$(uid)).data.teacherName
+        && request.resource.data.grade == get(/databases/$(database)/documents/activePasses/$(uid)).data.grade
+        && request.resource.data.room == get(/databases/$(database)/documents/activePasses/$(uid)).data.room
+        && request.resource.data.startedAt == get(/databases/$(database)/documents/activePasses/$(uid)).data.startedAt;
+      allow update, delete: if false;
+    }
+    match /kioskRequests/{deviceUid} {
+      allow get: if request.auth != null && request.auth.uid == deviceUid;
+      allow list: if staff() && resource.data.ownerUid == request.auth.uid;
+      allow create: if request.auth != null
+        && request.auth.uid == deviceUid
+        && request.auth.token.firebase.sign_in_provider == 'anonymous'
+        && request.resource.data.keys().hasOnly(['ownerUid','createdAt'])
+        && request.resource.data.keys().hasAll(['ownerUid','createdAt'])
+        && request.resource.data.ownerUid is string
+        && exists(/databases/$(database)/documents/classrooms/$(request.resource.data.ownerUid))
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if staff() && resource.data.ownerUid == request.auth.uid;
+    }
+    match /kioskSessions/{deviceUid} {
+      allow get: if request.auth != null && request.auth.uid == deviceUid;
+      allow list: if staff() && resource.data.ownerUid == request.auth.uid;
+      allow create: if staff()
+        && exists(/databases/$(database)/documents/kioskRequests/$(deviceUid))
+        && get(/databases/$(database)/documents/kioskRequests/$(deviceUid)).data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['ownerUid','active','teacherName','grade','room','createdAt'])
+        && request.resource.data.keys().hasAll(['ownerUid','active','teacherName','grade','room','createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.active == true
+        && request.resource.data.teacherName == get(/databases/$(database)/documents/classrooms/$(request.auth.uid)).data.teacherName
+        && request.resource.data.grade == get(/databases/$(database)/documents/classrooms/$(request.auth.uid)).data.grade
+        && request.resource.data.room == get(/databases/$(database)/documents/classrooms/$(request.auth.uid)).data.room
+        && request.resource.data.createdAt == request.time;
+      allow update: if staff()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+        && request.resource.data.active == false;
+      allow delete: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
