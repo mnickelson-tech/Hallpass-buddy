@@ -20,7 +20,7 @@ service cloud.firestore {
         && shortText(request.resource.data.teacherName)
         && shortText(request.resource.data.room)
         && validGrade(request.resource.data.grade)
-        && request.resource.data.pinSalt is string && request.resource.data.pinSalt.matches('^[0-9a-f]{32} == request.time;
+        && request.resource.data.pinSalt is string && request.resource.data.pinSalt.matches('^[0-9a-f]{32}
       allow delete: if false;
     }
     match /activePasses/{uid} {
@@ -59,7 +59,7 @@ service cloud.firestore {
     match /{document=**} { allow read, write: if false; }
   }
 })
-        && request.resource.data.pinHash is string && request.resource.data.pinHash.matches('^[0-9a-f]{64} == request.time;
+        && request.resource.data.pinHash is string && request.resource.data.pinHash.matches('^[0-9a-f]{64}
       allow delete: if false;
     }
     match /activePasses/{uid} {
