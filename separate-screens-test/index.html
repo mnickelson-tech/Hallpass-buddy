@@ -34,7 +34,7 @@ function toggle(id,show){$(id).classList.toggle('hidden',!show)}
 function clean(s){return String(s||'').trim()}
 function make(tag,txt){const el=document.createElement(tag);el.textContent=txt;return el}
 async function pinHash(pin,salt){const data=new TextEncoder().encode(pin);const key=await crypto.subtle.importKey('raw',data,'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:Uint8Array.from(salt.match(/.{2}/g).map(x=>parseInt(x,16))),iterations:120000,hash:'SHA-256'},key,256);return Array.from(new Uint8Array(bits)).map(x=>x.toString(16).padStart(2,'0')).join('')}
-function showMode(){const signed=!!user;toggle('app',signed&&!kioskMode&&!pinGate);toggle('kiosk',signed&&kioskMode&&!pinGate);toggle('pinGate',signed&&pinGate);toggle('kioskOn',signed&&!kioskMode&&!pinGate);toggle('kioskOff',signed&&kioskMode&&!pinGate);toggle('signout',signed&&!kioskMode&&!pinGate);$('identity').classList.toggle('hidden',kioskMode||pinGate)}
+function showMode(){toggle('app',!!user);toggle('signout',!!user)}
 function elapsed(start,end=Date.now()){if(!start?.toDate)return '—';const seconds=Math.max(0,Math.floor((end-start.toDate().getTime())/1000));return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')}
 function stamp(ts){return ts?.toDate?.()?.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})||'Pending'}
 function tickTimers(){for(const el of document.querySelectorAll('[data-start-seconds]')){const ms=Number(el.dataset.startSeconds)*1000;const secs=Math.max(0,Math.floor((Date.now()-ms)/1000));el.textContent=Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0')}}
@@ -51,19 +51,7 @@ const ownPass=active.find(p=>p.id===user?.uid);
 const first=queue[0];
 const ready=!!profile&&queueReady;
 const canStart=ready&&!ownPass&&(!first);
-$('kioskQueueEntry').classList.toggle('hidden',!ready||(!ownPass&&queue.length===0));
-$('joinQueue').disabled=busyQueue||!ready;
-$('kioskQueueList').classList.toggle('hidden',!ready||queue.length===0);
-renderQueue('kioskQueue',true);
 renderQueue('teacherQueue',false);
-const ownKiosk=active.find(p=>p.id===user?.uid);
-$('kioskTeacher').textContent=profile?.teacherName||'Classroom not set up';
-$('kioskClass').textContent=profile?(profile.grade+' · '+profile.room):'Ask your teacher to set up this classroom';
-$('kioskStatus').textContent=ownKiosk?'A student is currently out. Check back in before another student leaves.':profile?'Ask your teacher for permission before starting a pass.':'Teacher setup is required.';
-toggle('kioskForm',!!profile&&!ownKiosk&&queueReady&&queue.length===0);toggle('kioskActive',!!ownKiosk);
-$('kioskStart').disabled=busy||!canStart;$('kioskReturn').disabled=busy;
-$('kioskOwn').textContent=ownKiosk?(ownKiosk.studentName+' · '+ownKiosk.destination):'';
-
 const own=active.find(p=>p.id===user?.uid);
 $('start').disabled=busy||!canStart;
 $('myStatus').textContent=own?'You already have a student out. Mark them back before starting another pass.':profile?(queue.length?'Waiting list active. The first student is next.':'Your classroom is ready for a pass.'):'Save your classroom first.';
@@ -95,21 +83,6 @@ function watch(){unsubscribe?.();unsubscribe=onSnapshot(collection(db,'activePas
 async function loadProfile(){const snap=await getDoc(doc(db,'classrooms',user.uid));profile=snap.exists()?snap.data():null;$('teacher').value=profile?.teacherName||user.displayName||'';$('grade').value=profile?.grade||'6th Grade';$('room').value=profile?.room||'';render()}
 $('signin').onclick=async()=>{try{await signInWithPopup(auth,provider)}catch(e){message('Sign-in failed: '+e.message,true)}};
 $('signout').onclick=()=>signOut(auth);
-$('kioskOn').onclick=()=>{if(!profile){message('Save your classroom first.',true);return}if(!profile.pinHash){message('Set and save a teacher PIN before opening Student Screen.',true);return}kioskMode=true;pinGate=false;render();message('Student Screen enabled. Keep this device supervised.')};
-$('kioskOff').onclick=()=>{pinGate=true;render();$('pinInput').value='';$('pinError').textContent='';$('pinInput').focus()};
-$('pinCancel').onclick=()=>{pinGate=false;render()};
-$('pinForm').onsubmit=async e=>{e.preventDefault();if(!profile?.pinHash)return;const now=Date.now();if(now<pinLockedUntil){$('pinError').textContent='Too many attempts. Try again in 30 seconds.';return}
-const candidate=$('pinInput').value;const actual=await pinHash(candidate,profile.pinSalt);$('pinInput').value='';
-if(actual!==profile.pinHash){pinAttempts++;if(pinAttempts>=5){pinLockedUntil=Date.now()+30000;pinAttempts=0}$('pinError').textContent='Incorrect PIN. Please try again.';return}
-pinAttempts=0;pinGate=false;kioskMode=false;render();message('Teacher Screen unlocked.')};
-$('kioskReturn').onclick=()=>{const own=active.find(p=>p.id===user?.uid);if(own)endPass(own)};
-$('queueForm').onsubmit=e=>{e.preventDefault();joinQueue()};
-$('kioskForm').onsubmit=e=>{e.preventDefault();startPass(clean($('kioskStudent').value),$('kioskDestination').value,()=>{$('kioskStudent').value=''})};
-onAuthStateChanged(auth,async u=>{unsubscribe?.();unsubscribe=null;unsubscribeQueue?.();unsubscribeQueue=null;unsubscribeHistory?.();unsubscribeHistory=null;unsubRequests?.();unsubRequests=null;unsubDevices?.();unsubDevices=null;history=[];historyReady=false;queue=[];queueReady=false;user=null;profile=null;active=[];kioskMode=false;pinGate=false;toggle('app',false);toggle('kiosk',false);toggle('kioskOn',false);toggle('kioskOff',false);toggle('signout',false);$('identity').textContent='';
-if(!u){toggle('login',true);message('Sign in to view live passes.');return}
-if(!allowed(u)){toggle('login',false);message('Access denied: a verified @conroeisd.net account is required.',true);await signOut(auth);return}
-user=u;toggle('login',false);toggle('app',true);toggle('signout',true);$('identity').textContent=u.email;
-try{await loadProfile();watch();watchQueue();watchHistory();watchPairing()}catch(e){message('Could not load classroom: '+e.message,true)}});
 $('saveProfile').onclick=async()=>{if(!user)return;const teacherName=clean($('teacher').value),grade=$('grade').value,room=clean($('room').value),pin=$('pinSetup').value;
 if(!teacherName||!room){message('Enter your teacher name and room.',true);return}if(pin&&!/^[0-9]{4,6}$/.test(pin)){message('PIN must contain 4 to 6 digits.',true);return}if(!pin&&!profile?.pinHash){message('Choose a 4–6 digit teacher PIN.',true);return}
 try{const pinSalt=pin?Array.from(crypto.getRandomValues(new Uint8Array(16))).map(x=>x.toString(16).padStart(2,'0')).join(''):profile.pinSalt;const hash=pin?await pinHash(pin,pinSalt):profile.pinHash;await setDoc(doc(db,'classrooms',user.uid),{teacherName,grade,room,ownerUid:user.uid,pinSalt,pinHash:hash,updatedAt:serverTimestamp()});$('pinSetup').value='';await loadProfile();message('Classroom and PIN saved.')}catch(e){message('Could not save classroom: '+e.message,true)}};
