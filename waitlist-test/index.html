@@ -39,7 +39,7 @@ const ownPass=active.find(p=>p.id===user?.uid);
 const first=queue[0];
 const ready=!!profile&&queueReady;
 const canStart=ready&&!ownPass&&(!first);
-$('kioskQueueEntry').classList.toggle('hidden',!ready);
+$('kioskQueueEntry').classList.toggle('hidden',!ready||(!ownPass&&queue.length===0));
 $('joinQueue').disabled=busyQueue||!ready;
 $('kioskQueueList').classList.toggle('hidden',!ready||queue.length===0);
 renderQueue('kioskQueue',true);
@@ -98,7 +98,7 @@ if(!teacherName||!room){message('Enter your teacher name and room.',true);return
 try{await setDoc(doc(db,'classrooms',user.uid),{teacherName,grade,room,ownerUid:user.uid,updatedAt:serverTimestamp()});await loadProfile();message('Classroom saved.')}catch(e){message('Could not save classroom: '+e.message,true)}};
 $('passForm').onsubmit=async e=>{e.preventDefault();if(!user||!profile||busy)return;const studentName=clean($('student').value),destination=$('destination').value;if(!studentName)return;
 await startPass(studentName,destination,()=>{$('student').value=''})};
-async function startPass(studentName,destination,onSuccess){if(!user||!profile||busy||!queueReady||!studentName)return;if(queue.length&&queue[0].studentName!==studentName){message('There is a waiting list. The first student must go next.',true);return}busy=true;render();try{await runTransaction(db,async tx=>{const ref=doc(db,'activePasses',user.uid),existing=await tx.get(ref);if(existing.exists())throw new Error('You already have a student out.');
+async function startPass(studentName,destination,onSuccess){if(!user||!profile||busy||!queueReady||!studentName)return;if(queue.length&&(queue[0].studentName!==studentName||queue[0].destination!==destination)){message('There is a waiting list. The first student must go next.',true);return}busy=true;render();try{await runTransaction(db,async tx=>{const ref=doc(db,'activePasses',user.uid),existing=await tx.get(ref);if(existing.exists())throw new Error('You already have a student out.');
 tx.set(ref,{ownerUid:user.uid,teacherName:profile.teacherName,grade:profile.grade,room:profile.room,studentName,destination,startedAt:serverTimestamp()})});await onSuccess?.();message('Pass started. Other classrooms will see it automatically.')}catch(e){message('Could not start pass: '+e.message,true)}finally{busy=false;render()}};
 async function endPass(pass){if(!user||busy||pass.id!==user.uid)return;busy=true;render();
 try{await runTransaction(db,async tx=>{const ref=doc(db,'activePasses',user.uid),snap=await tx.get(ref);if(!snap.exists())throw new Error('This pass is already closed.');tx.delete(ref)});message('Student marked back in.')}catch(e){message('Could not close pass: '+e.message,true)}finally{busy=false;render()}}
