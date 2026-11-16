@@ -1,0 +1,67 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hallpass Buddy · Student Design Preview</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bree+Serif&display=swap" rel="stylesheet"><style>
+:root{font-family:system-ui,Arial,sans-serif;background:#f3f6fb;color:#172033}*{box-sizing:border-box}body{margin:0}header{background:#142c53;color:white;padding:24px;text-align:center}main{max-width:680px;margin:auto;padding:20px}.card{background:white;border:1px solid #dce3ee;border-radius:16px;padding:24px;margin-bottom:16px}h1,h2{margin:0 0 12px}p{line-height:1.5}label{display:block;font-weight:700;margin:12px 0 5px}input,select,button{font:inherit}input,select{width:100%;padding:13px;border:1px solid #9baabd;border-radius:10px}button{background:#3446b8;color:white;border:0;border-radius:10px;padding:14px 18px;font-weight:700;cursor:pointer;margin-top:12px}button:disabled{opacity:.5}.return{background:#087443}.secondary{background:#e8ebf3;color:#172033}.hidden{display:none!important}.status{background:#e8f0ff;border-radius:10px;padding:12px}.error{background:#ffeded;color:#8d1919}.queue{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid #ddd}.queue-detail{flex:1;min-width:0;overflow-wrap:anywhere}.queue button{flex-shrink:0;margin-top:0;white-space:nowrap}@media(max-width:520px){.queue{align-items:stretch;flex-direction:column;gap:8px}.queue button{align-self:flex-start}}.timer{font-weight:800;font-variant-numeric:tabular-nums;font-size:1.6rem}.muted{color:#536176;font-size:.9rem}
+/* Student design preview — same tested Firebase behavior, refreshed presentation */
+:root{color:#172c48;background:#f5f7fc}
+body{background:radial-gradient(circle at 8% 16%,#fbeaf0 0,transparent 28%),radial-gradient(circle at 95% 85%,#e6edf9 0,transparent 30%),#f5f7fc;min-height:100vh}
+header{position:relative;background:#142c53;border-bottom:5px solid #c5283e;padding:30px 18px 32px}
+header h1{font-family:'Bree Serif',Georgia,serif;font-weight:400;font-size:clamp(2rem,5vw,3rem);margin:0}
+header p{color:#e2eaf6;margin:9px 0 0;font-size:1rem}
+header .eyebrow{display:inline-block;letter-spacing:.16em;text-transform:uppercase;font-size:.73rem;font-weight:800;color:#ffdce3;margin-bottom:8px}
+main{max-width:760px;padding:26px 18px 42px}
+.card{border:3px dotted #c5283e;border-radius:20px;padding:clamp(22px,4vw,32px);box-shadow:0 10px 28px rgba(20,44,83,.07);margin-bottom:20px}
+h2{font-family:'Bree Serif',Georgia,serif;font-weight:400;color:#142c53;font-size:clamp(1.55rem,3.6vw,1.95rem);line-height:1.2;margin-bottom:12px}
+.card>p{color:#475569}
+label{font-size:1rem;color:#223b5d;margin-top:18px}
+input,select{background:#fff;border:2px solid #cbd5e1;border-radius:12px;min-height:54px;font-size:1.08rem}
+input:focus,select:focus{outline:3px solid #d8e5fb;outline-offset:1px;border-color:#183f78}
+button{background:#173e77;border-radius:12px;min-height:54px;padding:13px 22px;font-size:1.04rem;transition:filter .15s,transform .15s}
+button:hover:not(:disabled){filter:brightness(1.12)}
+button:active:not(:disabled){transform:scale(.99)}
+button:focus-visible{outline:3px solid #c5283e;outline-offset:3px}
+#startForm>button,#queueForm>button,#pairForm>button,#return{width:100%;margin-top:24px}
+.return{background:#087443}
+.status{background:#edf3fc;color:#24466d;border:1px solid #d5e3f5;padding:14px 16px;font-weight:600}
+.status.error{background:#fff0f0;color:#8d1919;border-color:#f2bfc6}
+#message{font-size:.9rem;margin:0 0 20px}
+#kiosk>.card:first-child{border-color:#c5283e}
+#active{padding-top:12px;text-align:center}
+#activeName{font-size:1.6rem}
+#active .timer{display:block;font-family:'Bree Serif',Georgia,serif;font-weight:400;color:#173e77;font-size:clamp(3rem,10vw,4.5rem);margin:10px auto}
+#active>p{font-weight:650;color:#536176}
+#queue:empty{display:none}
+.queue{gap:14px}
+.queue-detail{font-weight:650}
+.queue button{background:#173e77}
+.kiosk-steps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.kiosk-steps span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:7px 12px;font-size:.82rem;font-weight:650;color:#f5f8ff}
+.kiosk-footer{font-size:.82rem;text-align:center}
+@media(max-width:520px){header{padding:25px 14px}.card{padding:21px}.kiosk-steps{gap:6px}.kiosk-steps span{font-size:.73rem;padding:6px 9px}}
+</style></head><body>
+<header><div class="eyebrow">Campbell Cardinals</div><h1>Hallpass Buddy</h1><p>Your pass. Your place. Your way back.</p><div class="kiosk-steps" aria-label="How to use Hallpass Buddy"><span>1 · Enter your name</span><span>2 · Choose where</span><span>3 · Check back in</span></div></header><main><p id="message" class="status">Connecting…</p>
+<section id="pair" class="card"><h2>Connect to your classroom</h2><p>Ask your teacher for the Classroom ID, then wait for them to approve this device.</p><form id="pairForm"><label for="roomId">Classroom ID</label><input id="roomId" required maxlength="128" autocomplete="off" placeholder="Paste Classroom ID"><button>Request teacher approval</button></form></section>
+<section id="waiting" class="card hidden"><h2>Almost ready!</h2><p>Leave this page open. Your teacher will approve this device from their dashboard.</p></section>
+<section id="kiosk" class="hidden"><div class="card"><h2>Where are you headed?</h2><p id="status" class="status"></p>
+<form id="startForm"><label for="student">Your name (test names only)</label><input id="student" required maxlength="80"><label for="destination">Where are you going?</label><select id="destination"><option>Bathroom</option><option>Nurse</option><option>Office</option><option>Water</option><option>Locker</option><option>Counselor</option></select><button>Start my pass →</button></form>
+<div id="active" class="hidden"><h2 id="activeName"></h2><p>Time out: <span id="timer" class="timer">0:00</span></p><button id="return" class="return">I'm back in class</button></div>
+<form id="queueForm" class="hidden"><h2>Join the waiting list</h2><label for="queueName">Your name</label><input id="queueName" required maxlength="80"><label for="queueDestination">Destination</label><select id="queueDestination"><option>Bathroom</option><option>Nurse</option><option>Office</option><option>Water</option><option>Locker</option><option>Counselor</option></select><button>Join waiting list</button></form></div>
+<div class="card"><h2>Who’s up next?</h2><div id="queue"></div></div></section>
+<p class="muted kiosk-footer">Testing mode: use fictional names until district approval. Remember to check back in when you return.</p></main>
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+import{getAuth,signInAnonymously,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import{getFirestore,doc,collection,getDoc,setDoc,onSnapshot,runTransaction,serverTimestamp,addDoc,deleteDoc}from'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+const config={apiKey:"AIzaSyCyaYEJSKNwFzOLkNa4JvLnCf87uMOc5Yk",authDomain:"hallpass-buddy.firebaseapp.com",projectId:"hallpass-buddy",storageBucket:"hallpass-buddy.firebasestorage.app",messagingSenderId:"660799599712",appId:"1:660799599712:web:cb4f6c50bf5d26a7e3ff05"};
+const app=initializeApp(config),auth=getAuth(app),db=getFirestore(app),$=id=>document.getElementById(id);let uid=null,owner=null,session=null,pass=null,queue=[],unsubPass=null,unsubQueue=null,busy=false;
+const show=(id,v)=>$(id).classList.toggle('hidden',!v),msg=(s,err=false)=>{$('message').textContent=s;$('message').classList.toggle('error',err)},make=(tag,text)=>{const x=document.createElement(tag);x.textContent=text;return x};
+function draw(){show('pair',!!uid&&!owner);show('waiting',!!owner&&!session);show('kiosk',!!session);if(!session)return;
+const out=!!pass;show('active',out);show('startForm',!out&&!queue.length);show('queueForm',out||queue.length>0);$('status').textContent=out?'Someone is currently out. Join the waiting list if needed.':queue.length?'The first student on the waiting list is next.':'Ask your teacher before starting a pass.';$('activeName').textContent=out?pass.studentName+' · '+pass.destination:'';
+const el=$('queue');el.replaceChildren();if(!queue.length)el.append(make('p','Nobody is waiting.'));queue.forEach((q,i)=>{const row=make('div','');row.className='queue';const detail=make('span',(i+1)+'. '+q.studentName+' · '+q.destination);detail.className='queue-detail';row.append(detail);if(i===0&&!out){const b=make('button','Start my pass');b.onclick=()=>start(q.studentName,q.destination,q);row.append(b)}el.append(row)})}
+setInterval(()=>{if(!pass?.startedAt?.toDate)return;const secs=Math.max(0,Math.floor((Date.now()-pass.startedAt.toDate().getTime())/1000));$('timer').textContent=Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0')},1000);
+function subscribeClass(){unsubPass?.();unsubQueue?.();unsubPass=onSnapshot(doc(db,'activePasses',owner),snap=>{pass=snap.exists()?snap.data():null;draw()},e=>msg('Pass access: '+e.message,true));unsubQueue=onSnapshot(collection(db,'classrooms',owner,'waitlist'),snap=>{queue=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0)||a.id.localeCompare(b.id));draw()},e=>msg('Waiting list: '+e.message,true))}
+onAuthStateChanged(auth,async u=>{if(!u){try{await signInAnonymously(auth)}catch(e){msg('Enable Anonymous sign-in in Firebase Authentication: '+e.message,true)}return}if(u.providerData.length){msg('This device is signed in with a Google account. Use a separate browser profile for the student kiosk.',true);return}uid=u.uid;onSnapshot(doc(db,'kioskSessions',uid),snap=>{const data=snap.exists()?snap.data():null;if(data?.active){const changed=owner!==data.ownerUid||!session;owner=data.ownerUid;session=data;show('pair',false);show('waiting',false);if(changed)subscribeClass();msg('Student kiosk connected.')}else{session=null;unsubPass?.();unsubQueue?.();pass=null;queue=[];if(owner)msg('Waiting for approval, or access was revoked.');else msg('Enter the classroom ID to request access.')}draw()},e=>msg('Pairing status: '+e.message,true));onSnapshot(doc(db,'kioskRequests',uid),snap=>{if(!session&&snap.exists()){owner=snap.data().ownerUid;draw()}},e=>msg('Request status: '+e.message,true));draw()});
+$('pairForm').onsubmit=async e=>{e.preventDefault();const id=$('roomId').value.trim();if(!uid||!/^[A-Za-z0-9]{20,128}$/.test(id)){msg('Enter the full Classroom ID.',true);return}try{await setDoc(doc(db,'kioskRequests',uid),{ownerUid:id,createdAt:serverTimestamp()});owner=id;draw();msg('Approval request sent.')}catch(err){msg('Request failed: '+err.message,true)}};
+async function start(name,destination,entry){if(!session||busy||!name.trim())return;if(queue.length&&(!entry||entry.id!==queue[0].id)){msg('The first student in line goes next.',true);return}busy=true;try{await runTransaction(db,async tx=>{const ref=doc(db,'activePasses',owner),old=await tx.get(ref);if(old.exists())throw Error('Someone is already out.');tx.set(ref,{ownerUid:owner,teacherName:session.teacherName,grade:session.grade,room:session.room,studentName:name.trim(),destination,startedAt:serverTimestamp()})});if(entry)await deleteDoc(doc(db,'classrooms',owner,'waitlist',entry.id));$('student').value='';msg('Pass started.')}catch(err){msg('Could not start pass: '+err.message,true)}finally{busy=false}}
+$('startForm').onsubmit=e=>{e.preventDefault();start($('student').value,$('destination').value)};
+$('queueForm').onsubmit=async e=>{e.preventDefault();if(!session||busy)return;const name=$('queueName').value.trim();if(!name||queue.length>=20)return;busy=true;try{await addDoc(collection(db,'classrooms',owner,'waitlist'),{ownerUid:owner,studentName:name,destination:$('queueDestination').value,createdAt:serverTimestamp()});$('queueName').value='';msg('Added to the waiting list.')}catch(err){msg(err.message,true)}finally{busy=false}};
+$('return').onclick=async()=>{if(!session||busy||!pass)return;busy=true;try{await runTransaction(db,async tx=>{const ref=doc(db,'activePasses',owner),snap=await tx.get(ref);if(!snap.exists())throw Error('Pass already ended.');const p=snap.data();if(!p.startedAt)throw Error('Wait a moment for the start time.');const history=doc(collection(db,'classrooms',owner,'passHistory'));tx.set(history,{ownerUid:owner,studentName:p.studentName,destination:p.destination,teacherName:p.teacherName,grade:p.grade,room:p.room,startedAt:p.startedAt,endedAt:serverTimestamp()});tx.delete(ref)});msg('Welcome back!')}catch(err){msg('Could not end pass: '+err.message,true)}finally{busy=false}};
+</script></body></html>
